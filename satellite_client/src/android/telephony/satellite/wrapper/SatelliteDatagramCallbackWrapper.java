@@ -16,26 +16,24 @@
 
 package android.telephony.satellite.wrapper;
 
-import android.telephony.satellite.SatelliteDatagram;
-
 import android.annotation.NonNull;
-
 import java.util.function.Consumer;
 
-/**
- * A callback class for listening to satellite datagrams.
- */
+/** A callback class for listening to satellite datagrams. */
 public interface SatelliteDatagramCallbackWrapper {
-    /**
-     * Called when there is an incoming datagram to be received.
-     *
-     * @param datagramId An id that uniquely identifies incoming datagram.
-     * @param datagram Datagram to be received over satellite.
-     * @param pendingCount Number of datagrams yet to be received by the app.
-     * @param callback This callback will be used by datagram receiver app to inform Telephony
-     *                 that they received the datagram. If the callback is not received within
-     *                 five minutes, Telephony will resend the datagram.
-     */
-    void onSatelliteDatagramReceived(long datagramId, @NonNull SatelliteDatagram datagram,
-            int pendingCount, @NonNull Consumer<Void> callback);
+  /**
+   * Called when there is an incoming datagram to be received.
+   *
+   * @param datagramId An id that uniquely identifies incoming datagram.
+   * @param datagram Datagram to be received over satellite.
+   * @param pendingCount Number of datagrams yet to be received by the app.
+   * @param callback This callback will be used by datagram receiver app to inform Telephony that
+   *     they received the datagram. If the callback is not received within five minutes, Telephony
+   *     will resend the datagram.
+   */
+  void onSatelliteDatagramReceived(
+      long datagramId,
+      @NonNull SatelliteDatagramWrapper datagram,
+      int pendingCount,
+      @NonNull Consumer<Void> callback);
 }
