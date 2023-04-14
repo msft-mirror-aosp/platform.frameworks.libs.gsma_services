@@ -1,4 +1,4 @@
 <permissions>
     <library name="android.telephony.satellite"
-            file="/system/framework/SatelliteClient.jar" />
+            file="/system_ext/framework/SatelliteClient.jar" />
 </permissions>

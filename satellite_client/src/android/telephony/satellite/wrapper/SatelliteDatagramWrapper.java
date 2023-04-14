@@ -16,13 +16,19 @@
 
 package android.telephony.satellite.wrapper;
 
-/** A callback class for monitoring satellite modem state change events. */
-public interface SatelliteStateCallbackWrapper {
+import android.annotation.NonNull;
 
-  /**
-   * Called when satellite modem state changes.
-   *
-   * @param state The new satellite modem state.
-   */
-  void onSatelliteModemStateChanged(@SatelliteManagerWrapper.SatelliteModemState int state);
+/** Encapsulates the Datagram to be sent or received over satellite */
+public final class SatelliteDatagramWrapper {
+  /** Datagram to be sent or received over satellite. */
+  @NonNull private final byte[] mData;
+
+  public SatelliteDatagramWrapper(@NonNull byte[] data) {
+    this.mData = data;
+  }
+
+  @NonNull
+  public byte[] getSatelliteDatagram() {
+    return mData;
+  }
 }
