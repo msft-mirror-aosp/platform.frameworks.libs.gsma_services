@@ -16,11 +16,6 @@
 
 package android.telephony.satellite.wrapper;
 
-import static android.telephony.satellite.SatelliteManager.SatelliteDatagramTransferState;
-import static android.telephony.satellite.SatelliteManager.SatelliteError;
-
-import android.telephony.satellite.PointingInfo;
-
 import android.annotation.NonNull;
 
 /**
@@ -28,32 +23,34 @@ import android.annotation.NonNull;
  * events.
  */
 public interface SatelliteTransmissionUpdateCallbackWrapper {
-    /**
-     * Called when the satellite position changed.
-     *
-     * @param pointingInfo The pointing info containing the satellite location.
-     */
-    void onSatellitePositionChanged(@NonNull PointingInfo pointingInfo);
+  /**
+   * Called when the satellite position changed.
+   *
+   * @param pointingInfo The pointing info containing the satellite location.
+   */
+  void onSatellitePositionChanged(@NonNull PointingInfoWrapper pointingInfo);
 
-    /**
-     * Called when satellite datagram send state changed.
-     *
-     * @param state The new send datagram transfer state.
-     * @param sendPendingCount The number of datagrams that are currently being sent.
-     * @param errorCode If datagram transfer failed, the reason for failure.
-     */
-    void onSendDatagramStateChanged(
-            @SatelliteDatagramTransferState int state, int sendPendingCount,
-            @SatelliteError int errorCode);
+  /**
+   * Called when satellite datagram send state changed.
+   *
+   * @param state The new send datagram transfer state.
+   * @param sendPendingCount The number of datagrams that are currently being sent.
+   * @param errorCode If datagram transfer failed, the reason for failure.
+   */
+  void onSendDatagramStateChanged(
+      @SatelliteManagerWrapper.SatelliteDatagramTransferState int state,
+      int sendPendingCount,
+      @SatelliteManagerWrapper.SatelliteError int errorCode);
 
-    /**
-     * Called when satellite datagram receive state changed.
-     *
-     * @param state The new receive datagram transfer state.
-     * @param receivePendingCount The number of datagrams that are currently pending to be received.
-     * @param errorCode If datagram transfer failed, the reason for failure.
-     */
-    void onReceiveDatagramStateChanged(
-            @SatelliteDatagramTransferState int state, int receivePendingCount,
-            @SatelliteError int errorCode);
+  /**
+   * Called when satellite datagram receive state changed.
+   *
+   * @param state The new receive datagram transfer state.
+   * @param receivePendingCount The number of datagrams that are currently pending to be received.
+   * @param errorCode If datagram transfer failed, the reason for failure.
+   */
+  void onReceiveDatagramStateChanged(
+      @SatelliteManagerWrapper.SatelliteDatagramTransferState int state,
+      int receivePendingCount,
+      @SatelliteManagerWrapper.SatelliteError int errorCode);
 }
