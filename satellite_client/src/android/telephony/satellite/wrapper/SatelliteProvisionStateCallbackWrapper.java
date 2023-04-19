@@ -16,15 +16,13 @@
 
 package android.telephony.satellite.wrapper;
 
-/**
- * A callback class for monitoring satellite provision state change events.
- */
+/** A callback class for monitoring satellite provision state change events. */
 public interface SatelliteProvisionStateCallbackWrapper {
-    /**
-     * Called when satellite provision state changes.
-     *
-     * @param provisioned The new provision state. {@code true} means satellite is provisioned
-     *                    {@code false} means satellite is not provisioned.
-     */
-    void onSatelliteProvisionStateChanged(boolean provisioned);
+  /**
+   * Called when satellite provision state changes.
+   *
+   * @param provisioned The new provision state. {@code true} means satellite is provisioned {@code
+   *     false} means satellite is not provisioned.
+   */
+  void onSatelliteProvisionStateChanged(boolean provisioned);
 }
