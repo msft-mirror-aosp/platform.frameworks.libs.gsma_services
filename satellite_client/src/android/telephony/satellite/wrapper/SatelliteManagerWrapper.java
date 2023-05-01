@@ -18,13 +18,16 @@ package android.telephony.satellite.wrapper;
 
 import static android.telephony.satellite.SatelliteManager.SatelliteException;
 
+import android.Manifest;
 import android.annotation.CallbackExecutor;
 import android.annotation.IntDef;
 import android.annotation.NonNull;
 import android.annotation.Nullable;
+import android.annotation.RequiresPermission;
 import android.content.Context;
 import android.os.CancellationSignal;
 import android.os.OutcomeReceiver;
+import android.os.RemoteException;
 import android.telephony.satellite.AntennaPosition;
 import android.telephony.satellite.PointingInfo;
 import android.telephony.satellite.SatelliteCapabilities;
@@ -719,6 +722,13 @@ public class SatelliteManagerWrapper {
           }
         };
     mSatelliteManager.requestTimeForNextSatelliteVisibility(executor, internalCallback);
+  }
+
+  /**
+   * Inform whether the device is aligned with the satellite for demo mode.
+   */
+  public void onDeviceAlignedWithSatellite(boolean isAligned) {
+    mSatelliteManager.onDeviceAlignedWithSatellite(isAligned);
   }
 
   private Map<Integer, AntennaPositionWrapper> transformToAntennaPositionWrapperMap(
