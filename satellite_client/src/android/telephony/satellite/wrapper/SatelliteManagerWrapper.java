@@ -18,16 +18,13 @@ package android.telephony.satellite.wrapper;
 
 import static android.telephony.satellite.SatelliteManager.SatelliteException;
 
-import android.Manifest;
 import android.annotation.CallbackExecutor;
 import android.annotation.IntDef;
 import android.annotation.NonNull;
 import android.annotation.Nullable;
-import android.annotation.RequiresPermission;
 import android.content.Context;
 import android.os.CancellationSignal;
 import android.os.OutcomeReceiver;
-import android.os.RemoteException;
 import android.telephony.satellite.AntennaPosition;
 import android.telephony.satellite.PointingInfo;
 import android.telephony.satellite.SatelliteCapabilities;
