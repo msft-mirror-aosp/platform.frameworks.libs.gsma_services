@@ -18,16 +18,13 @@ package android.telephony.satellite.wrapper;
 
 import static android.telephony.satellite.SatelliteManager.SatelliteException;
 
-import android.Manifest;
 import android.annotation.CallbackExecutor;
 import android.annotation.IntDef;
 import android.annotation.NonNull;
 import android.annotation.Nullable;
-import android.annotation.RequiresPermission;
 import android.content.Context;
 import android.os.CancellationSignal;
 import android.os.OutcomeReceiver;
-import android.os.RemoteException;
 import android.telephony.satellite.AntennaPosition;
 import android.telephony.satellite.PointingInfo;
 import android.telephony.satellite.SatelliteCapabilities;
@@ -290,6 +287,10 @@ public class SatelliteManagerWrapper {
   public static final int SATELLITE_NOT_AUTHORIZED = 19;
   /** The device does not support satellite. */
   public static final int SATELLITE_NOT_SUPPORTED = 20;
+  /** The current request is already in-progress. */
+  public static final int SATELLITE_REQUEST_IN_PROGRESS = 21;
+  /** Satellite modem is currently busy due to which current request cannot be processed. */
+  public static final int SATELLITE_MODEM_BUSY = 22;
 
   /** @hide */
   @IntDef(
@@ -315,7 +316,9 @@ public class SatelliteManagerWrapper {
         SATELLITE_NETWORK_TIMEOUT,
         SATELLITE_NOT_REACHABLE,
         SATELLITE_NOT_AUTHORIZED,
-        SATELLITE_NOT_SUPPORTED
+        SATELLITE_NOT_SUPPORTED,
+        SATELLITE_REQUEST_IN_PROGRESS,
+        SATELLITE_MODEM_BUSY
       })
   @Retention(RetentionPolicy.SOURCE)
   public @interface SatelliteError {}
