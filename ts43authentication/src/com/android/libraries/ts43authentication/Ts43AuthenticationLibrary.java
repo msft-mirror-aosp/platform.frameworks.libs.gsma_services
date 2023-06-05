@@ -21,6 +21,10 @@ import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.annotation.StringDef;
 import android.content.Context;
+import android.content.pm.PackageInfo;
+import android.content.pm.PackageManager;
+import android.content.pm.Signature;
+import android.content.pm.SigningInfo;
 import android.os.Binder;
 import android.os.Handler;
 import android.os.Looper;
@@ -28,6 +32,7 @@ import android.os.Message;
 import android.os.OutcomeReceiver;
 import android.os.PersistableBundle;
 import android.telephony.SubscriptionInfo;
+import android.util.Log;
 
 import com.android.libraries.entitlement.ServiceEntitlementException;
 import com.android.libraries.entitlement.Ts43Authentication;
@@ -35,6 +40,11 @@ import com.android.libraries.entitlement.Ts43Authentication;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.net.URL;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.Arrays;
+import java.util.ArrayList;
+import java.util.HexFormat;
 import java.util.concurrent.Executor;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -44,11 +54,16 @@ import java.util.concurrent.locks.ReentrantLock;
  * {@link AuthenticationException} on failure.
  */
 public class Ts43AuthenticationLibrary extends Handler {
+    private static final String TAG = "Ts43AuthenticationLibrary";
+
     /**
-     * Configuration key for the list of {@code SHA256} signing certificates that are permitted
-     * to make authentication requests. This will be used to verify the {@code appName} that is
-     * passed to authentication requests.
+     * Configuration key for the list of {@code SHA256} signing certificates and packages that are
+     * permitted to make authentication requests. This will be used to verify the
+     * {@code packageName} that is passed to authentication requests.
      * If this is a {@code null} or an empty list, all requests will be allowed to go through.
+     * <p>
+     * This will be a list of carrier certificate hashes, followed by optional package names,
+     * for example {@code "SHA256"} or {@code "SHA256:package1,package2,package3..."}.
      * <p>
      * {@code null} by default
      */
@@ -60,7 +75,7 @@ public class Ts43AuthenticationLibrary extends Handler {
      * If this is {@code true}, the {@code appName} will be {@code "<SHA>|<packageName>"}, where
      * {@code <SHA>} is the {@code SHA256} hash of the package's signing certificate and
      * {@code <packageName>} is the package name of the calling application.
-     * If this is {@code false}, the {@code appName} will just be the package name of the
+     * If this is {@code false}, the {@code appName} will just be the {@code packageName} of the
      * calling application.
      * <p>
      * {@code false} by default
@@ -80,6 +95,7 @@ public class Ts43AuthenticationLibrary extends Handler {
 
     @NonNull private final ReentrantLock mLock = new ReentrantLock();
     @NonNull private final Context mContext;
+    @NonNull private final PackageManager mPackageManager;
 
     /**
      * Create an instance of the TS.43 Authentication Library.
@@ -89,6 +105,7 @@ public class Ts43AuthenticationLibrary extends Handler {
     public Ts43AuthenticationLibrary(@NonNull Context context, @NonNull Looper looper) {
         super(looper);
         mContext = context;
+        mPackageManager = mContext.getPackageManager();
     }
 
     private static class EapAkaAuthenticationRequest {
@@ -199,9 +216,11 @@ public class Ts43AuthenticationLibrary extends Handler {
             @NonNull String appId, @NonNull @CallbackExecutor Executor executor,
             @NonNull OutcomeReceiver<
                     Ts43Authentication.Ts43AuthToken, AuthenticationException> callback) {
-        if (isCallingPackageValid(configs, packageName)) {
+        String[] allowedPackageInfo = configs.getStringArray(KEY_ALLOWED_CERTIFICATES_STRING_ARRAY);
+        String certificate = getMatchingCertificate(allowedPackageInfo, packageName);
+        if (isCallingPackageAllowed(allowedPackageInfo, packageName, certificate)) {
             obtainMessage(EVENT_REQUEST_EAP_AKA_AUTHENTICATION, new EapAkaAuthenticationRequest(
-                    getAppName(configs, packageName), appVersion, slotIndex,
+                    getAppName(configs, packageName, certificate), appVersion, slotIndex,
                     entitlementServerAddress, entitlementVersion, appId, executor, callback))
                     .sendToTarget();
         } else {
@@ -250,11 +269,14 @@ public class Ts43AuthenticationLibrary extends Handler {
             @NonNull URL entitlementServerAddress, @Nullable String entitlementVersion,
             @NonNull String appId, @NonNull @CallbackExecutor Executor executor,
             @NonNull OutcomeReceiver<URL, AuthenticationException> callback) {
-        if (isCallingPackageValid(configs, packageName)) {
+        String[] allowedPackageInfo = configs.getStringArray(KEY_ALLOWED_CERTIFICATES_STRING_ARRAY);
+        String certificate = getMatchingCertificate(allowedPackageInfo, packageName);
+        if (isCallingPackageAllowed(allowedPackageInfo, packageName, certificate)) {
             obtainMessage(EVENT_REQUEST_OIDC_AUTHENTICATION_SERVER,
-                    new OidcAuthenticationServerRequest(getAppName(configs, packageName),
-                            appVersion, slotIndex, entitlementServerAddress, entitlementVersion,
-                            appId, executor, callback)).sendToTarget();
+                    new OidcAuthenticationServerRequest(
+                            getAppName(configs, packageName, certificate), appVersion, slotIndex,
+                            entitlementServerAddress, entitlementVersion, appId, executor,
+                            callback)).sendToTarget();
         } else {
             executor.execute(() -> Binder.withCleanCallingIdentity(() -> callback.onError(
                     new AuthenticationException(AuthenticationException.ERROR_INVALID_APP_NAME,
@@ -288,7 +310,9 @@ public class Ts43AuthenticationLibrary extends Handler {
             @NonNull @CallbackExecutor Executor executor,
             @NonNull OutcomeReceiver<
                     Ts43Authentication.Ts43AuthToken, AuthenticationException> callback) {
-        if (isCallingPackageValid(configs, packageName)) {
+        String[] allowedPackageInfo = configs.getStringArray(KEY_ALLOWED_CERTIFICATES_STRING_ARRAY);
+        String certificate = getMatchingCertificate(allowedPackageInfo, packageName);
+        if (isCallingPackageAllowed(allowedPackageInfo, packageName, certificate)) {
             obtainMessage(EVENT_REQUEST_OIDC_AUTHENTICATION, new OidcAuthenticationRequest(
                     entitlementServerAddress, entitlementVersion, aesUrl, executor, callback))
                     .sendToTarget();
@@ -299,24 +323,148 @@ public class Ts43AuthenticationLibrary extends Handler {
         }
     }
 
-    private static boolean isCallingPackageValid(@NonNull PersistableBundle configs,
+    @Nullable private String getMatchingCertificate(@Nullable String[] allowedPackageInfo,
             @NonNull String packageName) {
-        // TODO: implement
-        return true;
+        if (allowedPackageInfo == null || allowedPackageInfo.length == 0) {
+            // No need to find a matching certificates if the allowlist is empty.
+            Log.d(TAG, "No need to find a matching certificate because the allowlist is empty");
+            return null;
+        }
+
+        // At this point an allowlist exists. A matching certificate must be found in order for
+        // the authentication request to be validated. If this method returns {@code null} because
+        // a matching certificate is unable to be found, the authentication request will be denied.
+        ArrayList<String> allowedCertificates =
+                getAllowedCertificatesForPackage(allowedPackageInfo, packageName);
+        if (allowedCertificates.size() == 0) {
+            // If there are no allowed certificates for the given package, return null.
+            Log.e(TAG, "No allowed certificates found for package: " + packageName);
+            return null;
+        }
+
+        Signature signature = getMainPackageSignature(packageName);
+        if (signature == null) {
+            // If there is no package signature for the given package, return null.
+            Log.e(TAG, "No package signature for package: " + packageName);
+            return null;
+        }
+
+        MessageDigest md;
+        try {
+            md = MessageDigest.getInstance("SHA-256");
+        } catch (NoSuchAlgorithmException e) {
+            // If parsing SHA-256 is not supported, return null.
+            Log.wtf(TAG, "Unable to parse SHA-256 hash");
+            return null;
+        }
+
+        // Check whether there is a match between the hash from the package signature and the
+        // hash from the certificates in the allowlist.
+        byte[] signatureHash = md.digest(signature.toByteArray());
+        for (String certificate : allowedCertificates) {
+            byte[] certificateHash = HexFormat.of().parseHex(certificate);
+            if (Arrays.equals(signatureHash, certificateHash)) {
+                Log.d(TAG, "Found matching certificate for package " + packageName + ": "
+                        + certificate);
+                return certificate;
+            }
+        }
+        return null;
     }
 
-    @NonNull private static String getAppName(@NonNull PersistableBundle configs,
-            @NonNull String packageName) {
-        if (configs.getBoolean(KEY_APPEND_SHA_TO_APP_NAME_BOOL)) {
-            return getPackageSha(packageName) + "|" + packageName;
+    @NonNull private ArrayList<String> getAllowedCertificatesForPackage(
+            @NonNull String[] allowedPackageInfo, @NonNull String packageName) {
+        ArrayList<String> allowedCertificates = new ArrayList<>();
+        for (String packageInfo : allowedPackageInfo) {
+            // packageInfo format: 1) "SHA256" or 2) "SHA256:package1,package2,package3..."
+            String[] splitPackageInfo = packageInfo.split(":");
+            if (splitPackageInfo.length == 1) {
+                // Case 1: Certificate only
+                allowedCertificates.add(packageInfo);
+            } else if (splitPackageInfo.length == 2) {
+                // Case 2: Certificate and allowed packages
+                String certificate = splitPackageInfo[0];
+                String packages = splitPackageInfo[1];
+                for (String allowedPackage : packages.split(",")) {
+                    // Add the certificate only if the package name is specified in the allowlist.
+                    if (allowedPackage.equals(packageName)) {
+                        allowedCertificates.add(certificate);
+                        break;
+                    }
+                }
+            }
+        }
+        return allowedCertificates;
+    }
+
+    @Nullable private Signature getMainPackageSignature(@NonNull String packageName) {
+        PackageInfo packageInfo;
+        try {
+            packageInfo = mPackageManager.getPackageInfo(
+                    packageName, PackageManager.GET_SIGNING_CERTIFICATES);
+        } catch (PackageManager.NameNotFoundException e) {
+            Log.e(TAG, "Unable to find package name: " + packageName);
+            return null;
+        }
+        int index = 0;
+        Signature[] signatures = packageInfo.signatures;
+        SigningInfo signingInfo = packageInfo.signingInfo;
+        if (signingInfo != null) {
+            if (signingInfo.hasMultipleSigners()) {
+                // If the application is signed by multiple signers, return the first signature.
+                signatures = signingInfo.getApkContentsSigners();
+            } else {
+                // If there is a signing certificate history, return the most recent signature,
+                // which is the last element in the list.
+                signatures = signingInfo.getSigningCertificateHistory();
+                if (signatures != null) {
+                    index = signatures.length - 1;
+                }
+            }
+        }
+        if (signatures == null && signatures[index] != null) {
+            Log.e(TAG, "Unable to find package signatures for package: " + packageName);
+            return null;
         } else {
-            return packageName;
+            Signature signature = signatures[index];
+            Log.d(TAG, "Found package signature for " + packageName + ": " + signature);
+            return signature;
         }
     }
 
-    private static String getPackageSha(@NonNull String packageName) {
-        // TODO: implement
-        return "";
+    private boolean isCallingPackageAllowed(@Nullable String[] allowedPackageInfo,
+            @NonNull String packageName, @Nullable String certificate) {
+        // Check that the package name matches that of the calling package.
+        if (!isPackageNameValidForCaller(packageName)) {
+            return false;
+        }
+
+        // Check if we need to check for a certificate.
+        if (allowedPackageInfo == null || allowedPackageInfo.length == 0) {
+            return true;
+        } else {
+            // Check that a matching certificate exists.
+            return certificate != null;
+        }
+    }
+
+    private boolean isPackageNameValidForCaller(@NonNull String packageName) {
+        String[] packages = mPackageManager.getPackagesForUid(Binder.getCallingUid());
+        for (String uidPackage : packages) {
+            if (packageName.equals(uidPackage)) {
+                return true;
+            }
+        }
+        Log.e(TAG, "Package name: " + packageName + " does not match that of the calling UID.");
+        return false;
+    }
+
+    @NonNull private String getAppName(@NonNull PersistableBundle configs,
+            @NonNull String packageName, @Nullable String certificate) {
+        if (configs.getBoolean(KEY_APPEND_SHA_TO_APP_NAME_BOOL) && certificate != null) {
+            return certificate + "|" + packageName;
+        }
+        return packageName;
     }
 
     @Override
