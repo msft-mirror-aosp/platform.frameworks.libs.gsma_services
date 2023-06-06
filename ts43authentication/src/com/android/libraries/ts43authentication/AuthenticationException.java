@@ -18,8 +18,11 @@ package com.android.libraries.ts43authentication;
 
 import android.annotation.IntDef;
 import android.annotation.NonNull;
+import android.annotation.Nullable;
 import android.os.OutcomeReceiver;
 import android.os.PersistableBundle;
+
+import com.android.libraries.entitlement.ServiceEntitlementException;
 
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
@@ -47,7 +50,7 @@ public class AuthenticationException extends Exception {
      * Clients should call {@link Ts43AuthenticationLibrary#requestOidcAuthenticationServer(
      * PersistableBundle, String, String, int, URL, String, String, Executor, OutcomeReceiver)}
      * and {@link Ts43AuthenticationLibrary#requestOidcAuthentication(
-     * PersistableBundle, String, URL, Executor, OutcomeReceiver)} instead.
+     * PersistableBundle, String, URL, String, URL, Executor, OutcomeReceiver)} instead.
      */
     public static final int ERROR_MUST_USE_OIDC = 2;
 
@@ -55,7 +58,7 @@ public class AuthenticationException extends Exception {
      * Authentication request failed because one or more of the services required to complete the
      * request (e.g. Telephony, SIM, TS.43 entitlement server) are not currently available.
      */
-    public static final int ERROR_SERVICE_UNAVAILABLE = 3;
+    public static final int ERROR_SERVICE_NOT_AVAILABLE = 3;
 
     /**
      * Authentication request failed because the SIM is not returning a response to the EAP-AKA
@@ -92,7 +95,7 @@ public class AuthenticationException extends Exception {
             ERROR_UNSPECIFIED,
             ERROR_INVALID_APP_NAME,
             ERROR_MUST_USE_OIDC,
-            ERROR_SERVICE_UNAVAILABLE,
+            ERROR_SERVICE_NOT_AVAILABLE,
             ERROR_ICC_AUTHENTICATION_NOT_AVAILABLE,
             ERROR_EAP_AKA_SYNCHRONIZATION_FAILURE,
             ERROR_MAXIMUM_EAP_AKA_ATTEMPTS,
@@ -112,12 +115,43 @@ public class AuthenticationException extends Exception {
      */
     public static final String RETRY_AFTER_UNSPECIFIED = "";
 
+    @AuthenticationError private final int mError;
+    private final int mHttpStatusCode;
+    @NonNull private final String mRetryAfter;
+
+    private AuthenticationException(@AuthenticationError int error, int httpStatusCode,
+            @NonNull String retryAfter, @NonNull String message) {
+        super(message);
+        mError = error;
+        mHttpStatusCode = httpStatusCode;
+        mRetryAfter = retryAfter;
+    }
+
+    /**
+     * Create an AuthenticationException for the given {@link AuthenticationError}.
+     * @param error The authentication error.
+     * @param message The detail message with more information about the exception.
+     */
+    public AuthenticationException(@AuthenticationError int error, @NonNull String message) {
+        this(error, HTTP_STATUS_CODE_UNSPECIFIED, RETRY_AFTER_UNSPECIFIED, message);
+    }
+
+    /**
+     * Create an AuthenticationException from the given {@link ServiceEntitlementException}.
+     * @param exception The service entitlement exception from the TS.43 library.
+     */
+    public AuthenticationException(@NonNull ServiceEntitlementException exception) {
+        this(convertToAuthenticationError(exception.getErrorCode()),
+                convertToHttpStatusCode(exception.getHttpStatus()),
+                convertToRetryAfter(exception.getRetryAfter()), exception.getMessage());
+    }
+
     /**
      * The error code for why authentication failed, or {@link #ERROR_UNSPECIFIED} if it is
      * unspecified.
      */
     @AuthenticationError public int getError() {
-        return ERROR_UNSPECIFIED;
+        return mError;
     }
 
     /**
@@ -125,7 +159,7 @@ public class AuthenticationException extends Exception {
      * {@link #HTTP_STATUS_CODE_UNSPECIFIED} if it is unspecified.
      */
     public int getHttpStatusCode() {
-        return HTTP_STATUS_CODE_UNSPECIFIED;
+        return mHttpStatusCode;
     }
 
     /**
@@ -135,6 +169,43 @@ public class AuthenticationException extends Exception {
      * <a href="https://tools.ietf.org/html/rfc7231#section-7.1.3">RFC 7231</a>
      */
     @NonNull public String getRetryAfter() {
-        return RETRY_AFTER_UNSPECIFIED;
+        return mRetryAfter;
+    }
+
+    @AuthenticationError private static int convertToAuthenticationError(int errorCode) {
+        switch (errorCode) {
+            case ServiceEntitlementException.ERROR_PHONE_NOT_AVAILABLE:
+            case ServiceEntitlementException.ERROR_SERVER_NOT_CONNECTABLE:
+                return ERROR_SERVICE_NOT_AVAILABLE;
+            case ServiceEntitlementException.ERROR_ICC_AUTHENTICATION_NOT_AVAILABLE:
+                return ERROR_ICC_AUTHENTICATION_NOT_AVAILABLE;
+            case ServiceEntitlementException.ERROR_EAP_AKA_SYNCHRONIZATION_FAILURE:
+                return ERROR_EAP_AKA_SYNCHRONIZATION_FAILURE;
+            case ServiceEntitlementException.ERROR_EAP_AKA_FAILURE:
+                return ERROR_MAXIMUM_EAP_AKA_ATTEMPTS;
+            case ServiceEntitlementException.ERROR_HTTP_STATUS_NOT_SUCCESS:
+                return ERROR_HTTP_RESPONSE_FAILED;
+            case ServiceEntitlementException.ERROR_MALFORMED_HTTP_RESPONSE:
+            case ServiceEntitlementException.ERROR_TOKEN_NOT_AVAILABLE:
+                return ERROR_INVALID_HTTP_RESPONSE;
+            case ServiceEntitlementException.ERROR_UNKNOWN:
+            default:
+                return ERROR_UNSPECIFIED;
+        }
+    }
+
+    private static int convertToHttpStatusCode(int httpStatusCode) {
+        if (httpStatusCode == ServiceEntitlementException.HTTP_STATUS_UNSPECIFIED) {
+            return HTTP_STATUS_CODE_UNSPECIFIED;
+        }
+        return httpStatusCode;
+    }
+
+    private static String convertToRetryAfter(@Nullable String retryAfter) {
+        if (retryAfter == null || retryAfter.isEmpty()
+                || retryAfter.equals(ServiceEntitlementException.RETRY_AFTER_UNSPECIFIED)) {
+            return RETRY_AFTER_UNSPECIFIED;
+        }
+        return retryAfter;
     }
 }
