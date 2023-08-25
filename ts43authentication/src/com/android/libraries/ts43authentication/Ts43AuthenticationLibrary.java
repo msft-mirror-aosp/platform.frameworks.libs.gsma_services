@@ -30,15 +30,21 @@ import android.os.PersistableBundle;
 import android.telephony.SubscriptionInfo;
 import android.util.Log;
 
+import androidx.annotation.Nullable;
+import androidx.annotation.StringDef;
+
 import com.android.libraries.entitlement.ServiceEntitlementException;
 import com.android.libraries.entitlement.Ts43Authentication;
 
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
 import java.net.URL;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
 import java.util.ArrayList;
 import java.util.HexFormat;
+import java.util.List;
 import java.util.concurrent.Executor;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -48,7 +54,7 @@ import java.util.concurrent.locks.ReentrantLock;
  * {@link AuthenticationException} on failure.
  */
 public class Ts43AuthenticationLibrary extends Handler {
-    private static final String TAG = "Ts43AuthenticationLibrary";
+    private static final String TAG = "Ts43AuthLibrary";
 
     /**
      * Configuration key for the list of {@code SHA256} signing certificates and packages that are
@@ -76,6 +82,16 @@ public class Ts43AuthenticationLibrary extends Handler {
      */
     public static final String KEY_APPEND_SHA_TO_APP_NAME_BOOL = "append_sha_to_app_name";
 
+    /**
+     * Configuration keys for the {@link PersistableBundle} passed to authentication requests.
+     */
+    @Retention(RetentionPolicy.SOURCE)
+    @StringDef({
+            KEY_ALLOWED_CERTIFICATES_STRING_ARRAY,
+            KEY_APPEND_SHA_TO_APP_NAME_BOOL,
+    })
+    public @interface ConfigurationKey {}
+
     private static final int EVENT_REQUEST_EAP_AKA_AUTHENTICATION = 0;
     private static final int EVENT_REQUEST_OIDC_AUTHENTICATION_SERVER = 1;
     private static final int EVENT_REQUEST_OIDC_AUTHENTICATION = 2;
@@ -86,6 +102,7 @@ public class Ts43AuthenticationLibrary extends Handler {
 
     /**
      * Create an instance of the TS.43 Authentication Library.
+     *
      * @param context The application context.
      * @param looper The looper to run authentication requests on.
      */
@@ -97,18 +114,18 @@ public class Ts43AuthenticationLibrary extends Handler {
 
     private static class EapAkaAuthenticationRequest {
         private final String mAppName;
-        private final String mAppVersion;
+        @Nullable private final String mAppVersion;
         private final int mSlotIndex;
         private final URL mEntitlementServerAddress;
-        private final String mEntitlementVersion;
+        @Nullable private final String mEntitlementVersion;
         private final String mAppId;
         private final Executor mExecutor;
         private final OutcomeReceiver<
                 Ts43Authentication.Ts43AuthToken, AuthenticationException> mCallback;
 
-        private EapAkaAuthenticationRequest(String appName, String appVersion, int slotIndex,
-                URL entitlementServerAddress, String entitlementVersion, String appId,
-                Executor executor, OutcomeReceiver<
+        private EapAkaAuthenticationRequest(String appName, @Nullable String appVersion,
+                int slotIndex, URL entitlementServerAddress, @Nullable String entitlementVersion,
+                String appId, Executor executor, OutcomeReceiver<
                         Ts43Authentication.Ts43AuthToken, AuthenticationException> callback) {
             mAppName = appName;
             mAppVersion = appVersion;
@@ -123,17 +140,18 @@ public class Ts43AuthenticationLibrary extends Handler {
 
     private static class OidcAuthenticationServerRequest {
         private final String mAppName;
-        private final String mAppVersion;
+        @Nullable private final String mAppVersion;
         private final int mSlotIndex;
         private final URL mEntitlementServerAddress;
-        private final String mEntitlementVersion;
+        @Nullable private final String mEntitlementVersion;
         private final String mAppId;
         private final Executor mExecutor;
         private final OutcomeReceiver<URL, AuthenticationException> mCallback;
 
-        private OidcAuthenticationServerRequest(String appName, String appVersion, int slotIndex,
-                URL entitlementServerAddress, String entitlementVersion, String appId,
-                Executor executor, OutcomeReceiver<URL, AuthenticationException> callback) {
+        private OidcAuthenticationServerRequest(String appName, @Nullable String appVersion,
+                int slotIndex, URL entitlementServerAddress, @Nullable String entitlementVersion,
+                String appId, Executor executor,
+                OutcomeReceiver<URL, AuthenticationException> callback) {
             mAppName = appName;
             mAppVersion = appVersion;
             mSlotIndex = slotIndex;
@@ -147,14 +165,14 @@ public class Ts43AuthenticationLibrary extends Handler {
 
     private static class OidcAuthenticationRequest {
         private final URL mEntitlementServerAddress;
-        private final String mEntitlementVersion;
+        @Nullable private final String mEntitlementVersion;
         private final URL mAesUrl;
         private final Executor mExecutor;
         private final OutcomeReceiver<
                 Ts43Authentication.Ts43AuthToken, AuthenticationException> mCallback;
 
-        private OidcAuthenticationRequest(URL entitlementServerAddress, String entitlementVersion,
-                URL aesUrl, Executor executor, OutcomeReceiver<
+        private OidcAuthenticationRequest(URL entitlementServerAddress,
+                @Nullable String entitlementVersion, URL aesUrl, Executor executor, OutcomeReceiver<
                         Ts43Authentication.Ts43AuthToken, AuthenticationException> callback) {
             mEntitlementServerAddress = entitlementServerAddress;
             mEntitlementVersion = entitlementVersion;
@@ -169,8 +187,7 @@ public class Ts43AuthenticationLibrary extends Handler {
      * TS.43 Service Entitlement Configuration section 2.8.1.
      *
      * @param configs The configurations that should be applied to this authentication request.
-     *        The keys of the bundle must be one {@link #KEY_ALLOWED_CERTIFICATES_STRING_ARRAY} or
-     *        {@link #KEY_APPEND_SHA_TO_APP_NAME_BOOL}.
+     *        The keys of the bundle must be in {@link ConfigurationKey}.
      * @param packageName The package name for the calling application, used to validate the
      *        identity of the calling application. This will be sent as-is as the {@code app_name}
      *        in the HTTP GET request to the entitlement server unless
@@ -193,8 +210,8 @@ public class Ts43AuthenticationLibrary extends Handler {
      *        {@link AuthenticationException} with the failure details.
      */
     public void requestEapAkaAuthentication(PersistableBundle configs, String packageName,
-            String appVersion, int slotIndex, URL entitlementServerAddress,
-            String entitlementVersion, String appId, Executor executor, OutcomeReceiver<
+            @Nullable String appVersion, int slotIndex, URL entitlementServerAddress,
+            @Nullable String entitlementVersion, String appId, Executor executor, OutcomeReceiver<
                     Ts43Authentication.Ts43AuthToken, AuthenticationException> callback) {
         String[] allowedPackageInfo = configs.getStringArray(KEY_ALLOWED_CERTIFICATES_STRING_ARRAY);
         String certificate = getMatchingCertificate(allowedPackageInfo, packageName);
@@ -220,8 +237,7 @@ public class Ts43AuthenticationLibrary extends Handler {
      * authentication token.
      *
      * @param configs The configurations that should be applied to this authentication request.
-     *        The keys of the bundle must be one of {@link #KEY_ALLOWED_CERTIFICATES_STRING_ARRAY}
-     *        or {@link #KEY_APPEND_SHA_TO_APP_NAME_BOOL}.
+     *        The keys of the bundle must be in {@link ConfigurationKey}.
      * @param packageName The package name for the calling application, used to validate the
      *        identity of the calling application. This will be sent as-is as the {@code app_name}
      *        in the HTTP GET request to the entitlement server unless
@@ -246,8 +262,8 @@ public class Ts43AuthenticationLibrary extends Handler {
      *        {@link AuthenticationException} with the failure details.
      */
     public void requestOidcAuthenticationServer(PersistableBundle configs,
-            String packageName, String appVersion, int slotIndex,
-            URL entitlementServerAddress, String entitlementVersion,
+            String packageName, @Nullable String appVersion, int slotIndex,
+            URL entitlementServerAddress, @Nullable String entitlementVersion,
             String appId, Executor executor,
             OutcomeReceiver<URL, AuthenticationException> callback) {
         String[] allowedPackageInfo = configs.getStringArray(KEY_ALLOWED_CERTIFICATES_STRING_ARRAY);
@@ -270,8 +286,7 @@ public class Ts43AuthenticationLibrary extends Handler {
      * TS.43 Service Entitlement Configuration section 2.8.2.
      *
      * @param configs The configurations that should be applied to this authentication request.
-     *        The keys of the bundle must be one of {@link #KEY_ALLOWED_CERTIFICATES_STRING_ARRAY}
-     *        or {@link #KEY_APPEND_SHA_TO_APP_NAME_BOOL}.
+     *        The keys of the bundle must be in {@link ConfigurationKey}.
      * @param packageName The package name for the calling application, used to validate the
      *        identity of the calling application.
      * @param entitlementServerAddress The entitlement server address.
@@ -288,8 +303,7 @@ public class Ts43AuthenticationLibrary extends Handler {
      */
     public void requestOidcAuthentication(PersistableBundle configs,
             String packageName, URL entitlementServerAddress,
-            String entitlementVersion, URL aesUrl,
-            Executor executor,
+            @Nullable String entitlementVersion, URL aesUrl, Executor executor,
             OutcomeReceiver<
                     Ts43Authentication.Ts43AuthToken, AuthenticationException> callback) {
         String[] allowedPackageInfo = configs.getStringArray(KEY_ALLOWED_CERTIFICATES_STRING_ARRAY);
@@ -305,7 +319,8 @@ public class Ts43AuthenticationLibrary extends Handler {
         }
     }
 
-    private String getMatchingCertificate(String[] allowedPackageInfo, String packageName) {
+    @Nullable private String getMatchingCertificate(@Nullable String[] allowedPackageInfo,
+            String packageName) {
         if (allowedPackageInfo == null || allowedPackageInfo.length == 0) {
             // No need to find a matching certificates if the allowlist is empty.
             Log.d(TAG, "No need to find a matching certificate because the allowlist is empty");
@@ -315,9 +330,9 @@ public class Ts43AuthenticationLibrary extends Handler {
         // At this point an allowlist exists. A matching certificate must be found in order for
         // the authentication request to be validated. If this method returns {@code null} because
         // a matching certificate is unable to be found, the authentication request will be denied.
-        ArrayList<String> allowedCertificates =
+        List<String> allowedCertificates =
                 getAllowedCertificatesForPackage(allowedPackageInfo, packageName);
-        if (allowedCertificates.size() == 0) {
+        if (allowedCertificates.isEmpty()) {
             // If there are no allowed certificates for the given package, return null.
             Log.e(TAG, "No allowed certificates found for package: " + packageName);
             return null;
@@ -353,12 +368,12 @@ public class Ts43AuthenticationLibrary extends Handler {
         return null;
     }
 
-    private ArrayList<String> getAllowedCertificatesForPackage(String[] allowedPackageInfo,
+    private List<String> getAllowedCertificatesForPackage(String[] allowedPackageInfo,
             String packageName) {
-        ArrayList<String> allowedCertificates = new ArrayList<>();
+        List<String> allowedCertificates = new ArrayList<>();
         for (String packageInfo : allowedPackageInfo) {
             // packageInfo format: 1) "SHA256" or 2) "SHA256:package1,package2,package3..."
-            String[] splitPackageInfo = packageInfo.split(":");
+            String[] splitPackageInfo = packageInfo.split(":", -1);
             if (splitPackageInfo.length == 1) {
                 // Case 1: Certificate only
                 allowedCertificates.add(packageInfo);
@@ -366,7 +381,7 @@ public class Ts43AuthenticationLibrary extends Handler {
                 // Case 2: Certificate and allowed packages
                 String certificate = splitPackageInfo[0];
                 String packages = splitPackageInfo[1];
-                for (String allowedPackage : packages.split(",")) {
+                for (String allowedPackage : packages.split(",", -1)) {
                     // Add the certificate only if the package name is specified in the allowlist.
                     if (allowedPackage.equals(packageName)) {
                         allowedCertificates.add(certificate);
@@ -378,11 +393,11 @@ public class Ts43AuthenticationLibrary extends Handler {
         return allowedCertificates;
     }
 
-    private Signature getMainPackageSignature(String packageName) {
+    @Nullable private Signature getMainPackageSignature(String packageName) {
         PackageInfo packageInfo;
         try {
-            packageInfo = mPackageManager.getPackageInfo(
-                    packageName, PackageManager.GET_SIGNING_CERTIFICATES);
+            packageInfo = mPackageManager.getPackageInfo(packageName,
+                    PackageManager.PackageInfoFlags.of(PackageManager.GET_SIGNING_CERTIFICATES));
         } catch (PackageManager.NameNotFoundException e) {
             Log.e(TAG, "Unable to find package name: " + packageName);
             return null;
@@ -403,7 +418,7 @@ public class Ts43AuthenticationLibrary extends Handler {
                 }
             }
         }
-        if (signatures == null && signatures[index] != null) {
+        if (signatures == null || signatures[index] == null) {
             Log.e(TAG, "Unable to find package signatures for package: " + packageName);
             return null;
         } else {
@@ -413,8 +428,8 @@ public class Ts43AuthenticationLibrary extends Handler {
         }
     }
 
-    private boolean isCallingPackageAllowed(String[] allowedPackageInfo, String packageName,
-            String certificate) {
+    private boolean isCallingPackageAllowed(@Nullable String[] allowedPackageInfo,
+            String packageName, @Nullable String certificate) {
         // Check that the package name matches that of the calling package.
         if (!isPackageNameValidForCaller(packageName)) {
             return false;
@@ -440,7 +455,8 @@ public class Ts43AuthenticationLibrary extends Handler {
         return false;
     }
 
-    private String getAppName(PersistableBundle configs, String packageName, String certificate) {
+    private String getAppName(PersistableBundle configs, String packageName,
+            @Nullable String certificate) {
         if (configs.getBoolean(KEY_APPEND_SHA_TO_APP_NAME_BOOL) && certificate != null) {
             return certificate + "|" + packageName;
         }

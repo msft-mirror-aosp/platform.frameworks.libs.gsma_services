@@ -19,8 +19,12 @@ package com.android.libraries.ts43authentication;
 import android.os.OutcomeReceiver;
 import android.os.PersistableBundle;
 
+import androidx.annotation.IntDef;
+
 import com.android.libraries.entitlement.ServiceEntitlementException;
 
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
 import java.net.URL;
 import java.util.concurrent.Executor;
 
@@ -86,6 +90,24 @@ public class AuthenticationException extends Exception {
     public static final int ERROR_INVALID_HTTP_RESPONSE = 8;
 
     /**
+     * Authentication errors that can be returned by the TS.43 authentication library or
+     * service entitlement library.
+     */
+    @Retention(RetentionPolicy.SOURCE)
+    @IntDef({
+            ERROR_UNSPECIFIED,
+            ERROR_INVALID_APP_NAME,
+            ERROR_MUST_USE_OIDC,
+            ERROR_SERVICE_NOT_AVAILABLE,
+            ERROR_ICC_AUTHENTICATION_NOT_AVAILABLE,
+            ERROR_EAP_AKA_SYNCHRONIZATION_FAILURE,
+            ERROR_MAXIMUM_EAP_AKA_ATTEMPTS,
+            ERROR_HTTP_RESPONSE_FAILED,
+            ERROR_INVALID_HTTP_RESPONSE,
+    })
+    public @interface AuthenticationError {}
+
+    /**
      * The HTTP status code has not been specified.
      */
     public static final int HTTP_STATUS_CODE_UNSPECIFIED = -1;
@@ -96,12 +118,12 @@ public class AuthenticationException extends Exception {
      */
     public static final String RETRY_AFTER_UNSPECIFIED = "";
 
-    private final int mError;
+    @AuthenticationError private final int mError;
     private final int mHttpStatusCode;
     private final String mRetryAfter;
 
-    private AuthenticationException(int error, int httpStatusCode, String retryAfter,
-            String message) {
+    private AuthenticationException(@AuthenticationError int error, int httpStatusCode,
+            String retryAfter, String message) {
         super(message);
         mError = error;
         mHttpStatusCode = httpStatusCode;
@@ -109,7 +131,8 @@ public class AuthenticationException extends Exception {
     }
 
     /**
-     * Create an AuthenticationException for the given authentication error.
+     * Create an AuthenticationException for the given {@link AuthenticationError}.
+     *
      * @param error The authentication error.
      * @param message The detail message with more information about the exception.
      */
@@ -119,6 +142,7 @@ public class AuthenticationException extends Exception {
 
     /**
      * Create an AuthenticationException from the given {@link ServiceEntitlementException}.
+     *
      * @param exception The service entitlement exception from the TS.43 library.
      */
     public AuthenticationException(ServiceEntitlementException exception) {
@@ -131,7 +155,7 @@ public class AuthenticationException extends Exception {
      * The error code for why authentication failed, or {@link #ERROR_UNSPECIFIED} if it is
      * unspecified.
      */
-    public int getError() {
+    @AuthenticationError public int getError() {
         return mError;
     }
 
@@ -153,7 +177,7 @@ public class AuthenticationException extends Exception {
         return mRetryAfter;
     }
 
-    private static int convertToAuthenticationError(int errorCode) {
+    @AuthenticationError private static int convertToAuthenticationError(int errorCode) {
         switch (errorCode) {
             case ServiceEntitlementException.ERROR_PHONE_NOT_AVAILABLE:
             case ServiceEntitlementException.ERROR_SERVER_NOT_CONNECTABLE:
