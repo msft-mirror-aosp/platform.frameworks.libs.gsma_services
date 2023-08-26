@@ -730,8 +730,8 @@ public class SatelliteManagerWrapper {
   /**
    * Inform whether the device is aligned with the satellite for demo mode.
    */
-  public void onDeviceAlignedWithSatellite(boolean isAligned) {
-    mSatelliteManager.onDeviceAlignedWithSatellite(isAligned);
+  public void setDeviceAlignedWithSatellite(boolean isAligned) {
+    mSatelliteManager.setDeviceAlignedWithSatellite(isAligned);
   }
 
   private Map<Integer, AntennaPositionWrapper> transformToAntennaPositionWrapperMap(
