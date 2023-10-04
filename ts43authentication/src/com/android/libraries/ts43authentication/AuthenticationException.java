@@ -16,11 +16,10 @@
 
 package com.android.libraries.ts43authentication;
 
-import android.annotation.IntDef;
-import android.annotation.NonNull;
-import android.annotation.Nullable;
 import android.os.OutcomeReceiver;
 import android.os.PersistableBundle;
+
+import androidx.annotation.IntDef;
 
 import com.android.libraries.entitlement.ServiceEntitlementException;
 
@@ -90,8 +89,12 @@ public class AuthenticationException extends Exception {
      */
     public static final int ERROR_INVALID_HTTP_RESPONSE = 8;
 
+    /**
+     * Authentication errors that can be returned by the TS.43 authentication library or
+     * service entitlement library.
+     */
     @Retention(RetentionPolicy.SOURCE)
-    @IntDef(prefix = {"ERROR_"}, value = {
+    @IntDef({
             ERROR_UNSPECIFIED,
             ERROR_INVALID_APP_NAME,
             ERROR_MUST_USE_OIDC,
@@ -117,10 +120,10 @@ public class AuthenticationException extends Exception {
 
     @AuthenticationError private final int mError;
     private final int mHttpStatusCode;
-    @NonNull private final String mRetryAfter;
+    private final String mRetryAfter;
 
     private AuthenticationException(@AuthenticationError int error, int httpStatusCode,
-            @NonNull String retryAfter, @NonNull String message) {
+            String retryAfter, String message) {
         super(message);
         mError = error;
         mHttpStatusCode = httpStatusCode;
@@ -129,18 +132,20 @@ public class AuthenticationException extends Exception {
 
     /**
      * Create an AuthenticationException for the given {@link AuthenticationError}.
+     *
      * @param error The authentication error.
      * @param message The detail message with more information about the exception.
      */
-    public AuthenticationException(@AuthenticationError int error, @NonNull String message) {
+    public AuthenticationException(int error, String message) {
         this(error, HTTP_STATUS_CODE_UNSPECIFIED, RETRY_AFTER_UNSPECIFIED, message);
     }
 
     /**
      * Create an AuthenticationException from the given {@link ServiceEntitlementException}.
+     *
      * @param exception The service entitlement exception from the TS.43 library.
      */
-    public AuthenticationException(@NonNull ServiceEntitlementException exception) {
+    public AuthenticationException(ServiceEntitlementException exception) {
         this(convertToAuthenticationError(exception.getErrorCode()),
                 convertToHttpStatusCode(exception.getHttpStatus()),
                 convertToRetryAfter(exception.getRetryAfter()), exception.getMessage());
@@ -168,7 +173,7 @@ public class AuthenticationException extends Exception {
      * {@code HTTP-date} or the number of seconds to delay, as defined in
      * <a href="https://tools.ietf.org/html/rfc7231#section-7.1.3">RFC 7231</a>
      */
-    @NonNull public String getRetryAfter() {
+    public String getRetryAfter() {
         return mRetryAfter;
     }
 
@@ -201,7 +206,7 @@ public class AuthenticationException extends Exception {
         return httpStatusCode;
     }
 
-    private static String convertToRetryAfter(@Nullable String retryAfter) {
+    private static String convertToRetryAfter(String retryAfter) {
         if (retryAfter == null || retryAfter.isEmpty()
                 || retryAfter.equals(ServiceEntitlementException.RETRY_AFTER_UNSPECIFIED)) {
             return RETRY_AFTER_UNSPECIFIED;
