@@ -83,12 +83,23 @@ public class Ts43AuthenticationLibrary extends Handler {
     public static final String KEY_APPEND_SHA_TO_APP_NAME_BOOL = "append_sha_to_app_name";
 
     /**
+     * Configuration key to override the {@code appName} passed to the entitlement server.
+     * If this value is not {@code null}, the value of this config will be passed directly as the
+     * {@code appName} of the authentication request, taking precedence over
+     * {@link #KEY_APPEND_SHA_TO_APP_NAME_BOOL}.
+     * <p>
+     * {@code null} by default
+     */
+    public static final String KEY_OVERRIDE_APP_NAME_STRING = "override_app_name";
+
+    /**
      * Configuration keys for the {@link PersistableBundle} passed to authentication requests.
      */
     @Retention(RetentionPolicy.SOURCE)
     @StringDef({
             KEY_ALLOWED_CERTIFICATES_STRING_ARRAY,
             KEY_APPEND_SHA_TO_APP_NAME_BOOL,
+            KEY_OVERRIDE_APP_NAME_STRING,
     })
     public @interface ConfigurationKey {}
 
@@ -191,7 +202,8 @@ public class Ts43AuthenticationLibrary extends Handler {
      * @param packageName The package name for the calling application, used to validate the
      *        identity of the calling application. This will be sent as-is as the {@code app_name}
      *        in the HTTP GET request to the entitlement server unless
-     *        {@link #KEY_APPEND_SHA_TO_APP_NAME_BOOL} is set in the configuration bundle.
+     *        {@link #KEY_APPEND_SHA_TO_APP_NAME_BOOL} or {@link #KEY_OVERRIDE_APP_NAME_STRING} is
+     *        set in the configuration bundle.
      * @param appVersion The optional appVersion of the calling application, passed as the
      *        {@code app_version} in the HTTP GET request to the entitlement server.
      * @param slotIndex The logical SIM slot index involved in ODSA operation.
@@ -241,7 +253,8 @@ public class Ts43AuthenticationLibrary extends Handler {
      * @param packageName The package name for the calling application, used to validate the
      *        identity of the calling application. This will be sent as-is as the {@code app_name}
      *        in the HTTP GET request to the entitlement server unless
-     *        {@link #KEY_APPEND_SHA_TO_APP_NAME_BOOL} is set in the configuration bundle.
+     *        {@link #KEY_APPEND_SHA_TO_APP_NAME_BOOL} or {@link #KEY_OVERRIDE_APP_NAME_STRING} is
+     *        set in the configuration bundle.
      * @param appVersion The optional appVersion of the calling application, passed as the
      *        {@code app_version} in the HTTP GET request to the entitlement server.
      * @param slotIndex The logical SIM slot index involved in ODSA operation.
@@ -338,10 +351,10 @@ public class Ts43AuthenticationLibrary extends Handler {
             return null;
         }
 
-        Signature signature = getMainPackageSignature(packageName);
-        if (signature == null) {
-            // If there is no package signature for the given package, return null.
-            Log.e(TAG, "No package signature for package: " + packageName);
+        Signature[] signatures = getMainPackageSignatures(packageName);
+        if (signatures == null) {
+            // If there are no package signatures for the given package, return null.
+            Log.e(TAG, "No package signatures for package: " + packageName);
             return null;
         }
 
@@ -354,17 +367,20 @@ public class Ts43AuthenticationLibrary extends Handler {
             return null;
         }
 
-        // Check whether there is a match between the hash from the package signature and the
+        // Check whether there is a match between the hashes from the package signature and the
         // hash from the certificates in the allowlist.
-        byte[] signatureHash = md.digest(signature.toByteArray());
-        for (String certificate : allowedCertificates) {
-            byte[] certificateHash = HexFormat.of().parseHex(certificate);
-            if (Arrays.equals(signatureHash, certificateHash)) {
-                Log.d(TAG, "Found matching certificate for package " + packageName + ": "
-                        + certificate);
-                return certificate;
+        for (Signature signature : signatures) {
+            byte[] signatureHash = md.digest(signature.toByteArray());
+            for (String certificate : allowedCertificates) {
+                byte[] certificateHash = HexFormat.of().parseHex(certificate);
+                if (Arrays.equals(signatureHash, certificateHash)) {
+                    Log.d(TAG, "Found matching certificate for package " + packageName + ": "
+                            + certificate);
+                    return certificate;
+                }
             }
         }
+        Log.e(TAG, "No matching certificates for package: " + packageName);
         return null;
     }
 
@@ -393,7 +409,7 @@ public class Ts43AuthenticationLibrary extends Handler {
         return allowedCertificates;
     }
 
-    @Nullable private Signature getMainPackageSignature(String packageName) {
+    @Nullable private Signature[] getMainPackageSignatures(String packageName) {
         PackageInfo packageInfo;
         try {
             packageInfo = mPackageManager.getPackageInfo(packageName,
@@ -402,7 +418,6 @@ public class Ts43AuthenticationLibrary extends Handler {
             Log.e(TAG, "Unable to find package name: " + packageName);
             return null;
         }
-        int index = 0;
         Signature[] signatures = packageInfo.signatures;
         SigningInfo signingInfo = packageInfo.signingInfo;
         if (signingInfo != null) {
@@ -413,19 +428,15 @@ public class Ts43AuthenticationLibrary extends Handler {
                 // If there is a signing certificate history, return the most recent signature,
                 // which is the last element in the list.
                 signatures = signingInfo.getSigningCertificateHistory();
-                if (signatures != null) {
-                    index = signatures.length - 1;
-                }
             }
         }
-        if (signatures == null || signatures[index] == null) {
+        if (signatures == null) {
             Log.e(TAG, "Unable to find package signatures for package: " + packageName);
-            return null;
         } else {
-            Signature signature = signatures[index];
-            Log.d(TAG, "Found package signature for " + packageName + ": " + signature);
-            return signature;
+            Log.d(TAG, "Found package signatures for " + packageName + ": "
+                    + Arrays.toString(signatures));
         }
+        return signatures;
     }
 
     private boolean isCallingPackageAllowed(@Nullable String[] allowedPackageInfo,
@@ -451,16 +462,20 @@ public class Ts43AuthenticationLibrary extends Handler {
                 return true;
             }
         }
-        Log.e(TAG, "Package name: " + packageName + " does not match that of the calling UID.");
+        Log.e(TAG, "Package name " + packageName + " does not match those of the calling UID: "
+                + Arrays.toString(packages));
         return false;
     }
 
     private String getAppName(PersistableBundle configs, String packageName,
             @Nullable String certificate) {
-        if (configs.getBoolean(KEY_APPEND_SHA_TO_APP_NAME_BOOL) && certificate != null) {
+        if (configs.getString(KEY_OVERRIDE_APP_NAME_STRING) != null) {
+            return configs.getString(KEY_OVERRIDE_APP_NAME_STRING);
+        } else if (configs.getBoolean(KEY_APPEND_SHA_TO_APP_NAME_BOOL) && certificate != null) {
             return certificate + "|" + packageName;
+        } else {
+            return packageName;
         }
-        return packageName;
     }
 
     @Override
@@ -481,52 +496,55 @@ public class Ts43AuthenticationLibrary extends Handler {
     }
 
     private void onRequestEapAkaAuthentication(EapAkaAuthenticationRequest request) {
-        mLock.lock();
-        try {
-            Ts43Authentication authLibrary = new Ts43Authentication(mContext,
-                    request.mEntitlementServerAddress, request.mEntitlementVersion);
-            Ts43Authentication.Ts43AuthToken authToken = authLibrary.getAuthToken(
-                    request.mSlotIndex, request.mAppId, request.mAppName, request.mAppVersion);
-            request.mExecutor.execute(() -> request.mCallback.onResult(authToken));
-        } catch (ServiceEntitlementException exception) {
-            request.mExecutor.execute(() ->
-                    request.mCallback.onError(new AuthenticationException(exception)));
-        } finally {
-            mLock.unlock();
-        }
+        request.mExecutor.execute(() -> {
+            mLock.lock();
+            try {
+                Ts43Authentication authLibrary = new Ts43Authentication(mContext,
+                        request.mEntitlementServerAddress, request.mEntitlementVersion);
+                Ts43Authentication.Ts43AuthToken authToken = authLibrary.getAuthToken(
+                        request.mSlotIndex, request.mAppId, request.mAppName, request.mAppVersion);
+                request.mCallback.onResult(authToken);
+            } catch (ServiceEntitlementException exception) {
+                request.mCallback.onError(new AuthenticationException(exception));
+            } finally {
+                mLock.unlock();
+            }
+        });
     }
 
     private void onRequestOidcAuthenticationServer(OidcAuthenticationServerRequest request) {
-        mLock.lock();
-        try {
-            Ts43Authentication authLibrary = new Ts43Authentication(mContext,
-                    request.mEntitlementServerAddress, request.mEntitlementVersion);
-            URL url = authLibrary.getOidcAuthServer(
-                    mContext, request.mSlotIndex, request.mEntitlementServerAddress,
-                    request.mEntitlementVersion, request.mAppId, request.mAppName,
-                    request.mAppVersion);
-            request.mExecutor.execute(() -> request.mCallback.onResult(url));
-        } catch (ServiceEntitlementException exception) {
-            request.mExecutor.execute(() ->
-                    request.mCallback.onError(new AuthenticationException(exception)));
-        } finally {
-            mLock.unlock();
-        }
+        request.mExecutor.execute(() -> {
+            mLock.lock();
+            try {
+                Ts43Authentication authLibrary = new Ts43Authentication(mContext,
+                        request.mEntitlementServerAddress, request.mEntitlementVersion);
+                URL url = authLibrary.getOidcAuthServer(
+                        mContext, request.mSlotIndex, request.mEntitlementServerAddress,
+                        request.mEntitlementVersion, request.mAppId, request.mAppName,
+                        request.mAppVersion);
+                request.mCallback.onResult(url);
+            } catch (ServiceEntitlementException exception) {
+                request.mCallback.onError(new AuthenticationException(exception));
+            } finally {
+                mLock.unlock();
+            }
+        });
     }
 
     private void onRequestOidcAuthentication(OidcAuthenticationRequest request) {
-        mLock.lock();
-        try {
-            Ts43Authentication authLibrary = new Ts43Authentication(mContext,
-                    request.mEntitlementServerAddress, request.mEntitlementVersion);
-            Ts43Authentication.Ts43AuthToken authToken = authLibrary.getAuthToken(
-                    request.mAesUrl);
-            request.mExecutor.execute(() -> request.mCallback.onResult(authToken));
-        } catch (ServiceEntitlementException exception) {
-            request.mExecutor.execute(() ->
-                    request.mCallback.onError(new AuthenticationException(exception)));
-        } finally {
-            mLock.unlock();
-        }
+        request.mExecutor.execute(() -> {
+            mLock.lock();
+            try {
+                Ts43Authentication authLibrary = new Ts43Authentication(mContext,
+                        request.mEntitlementServerAddress, request.mEntitlementVersion);
+                Ts43Authentication.Ts43AuthToken authToken = authLibrary.getAuthToken(
+                        request.mAesUrl);
+                request.mCallback.onResult(authToken);
+            } catch (ServiceEntitlementException exception) {
+                request.mCallback.onError(new AuthenticationException(exception));
+            } finally {
+                mLock.unlock();
+            }
+        });
     }
 }
