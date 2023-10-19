@@ -90,6 +90,11 @@ public class AuthenticationException extends Exception {
     public static final int ERROR_INVALID_HTTP_RESPONSE = 8;
 
     /**
+     * Authentication request failed because the request parameters were malformed.
+     */
+    public static final int ERROR_INVALID_REQUEST = 9;
+
+    /**
      * Authentication errors that can be returned by the TS.43 authentication library or
      * service entitlement library.
      */
@@ -104,6 +109,7 @@ public class AuthenticationException extends Exception {
             ERROR_MAXIMUM_EAP_AKA_ATTEMPTS,
             ERROR_HTTP_RESPONSE_FAILED,
             ERROR_INVALID_HTTP_RESPONSE,
+            ERROR_INVALID_REQUEST,
     })
     public @interface AuthenticationError {}
 
