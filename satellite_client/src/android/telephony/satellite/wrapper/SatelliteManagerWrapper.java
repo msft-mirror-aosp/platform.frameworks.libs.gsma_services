@@ -19,6 +19,7 @@ package android.telephony.satellite.wrapper;
 import static android.telephony.satellite.SatelliteManager.SatelliteException;
 
 import android.annotation.CallbackExecutor;
+import android.annotation.FlaggedApi;
 import android.annotation.IntDef;
 import android.annotation.NonNull;
 import android.annotation.Nullable;
@@ -26,6 +27,8 @@ import android.content.Context;
 import android.os.CancellationSignal;
 import android.os.OutcomeReceiver;
 import android.telephony.satellite.AntennaPosition;
+import android.telephony.satellite.NtnSignalStrength;
+import android.telephony.satellite.NtnSignalStrengthCallback;
 import android.telephony.satellite.PointingInfo;
 import android.telephony.satellite.SatelliteCapabilities;
 import android.telephony.satellite.SatelliteDatagram;
@@ -34,6 +37,7 @@ import android.telephony.satellite.SatelliteManager;
 import android.telephony.satellite.SatelliteProvisionStateCallback;
 import android.telephony.satellite.SatelliteStateCallback;
 import android.telephony.satellite.SatelliteTransmissionUpdateCallback;
+import com.android.internal.telephony.flags.Flags;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.time.Duration;
@@ -51,6 +55,10 @@ public class SatelliteManagerWrapper {
   private static final String TAG = "SatelliteManagerWrapper";
 
   private static final ConcurrentHashMap<
+      SatelliteDatagramCallbackWrapper, SatelliteDatagramCallback>
+      sSatelliteDatagramCallbackWrapperMap = new ConcurrentHashMap<>();
+
+  private static final ConcurrentHashMap<
           SatelliteProvisionStateCallbackWrapper, SatelliteProvisionStateCallback>
       sSatelliteProvisionStateCallbackWrapperMap = new ConcurrentHashMap<>();
 
@@ -62,8 +70,8 @@ public class SatelliteManagerWrapper {
       sSatelliteTransmissionUpdateCallbackWrapperMap = new ConcurrentHashMap<>();
 
   private static final ConcurrentHashMap<
-          SatelliteDatagramCallbackWrapper, SatelliteDatagramCallback>
-      sSatelliteDatagramCallbackWrapperMap = new ConcurrentHashMap<>();
+          NtnSignalStrengthCallbackWrapper, NtnSignalStrengthCallback>
+      sNtnSignalStrengthCallbackWrapperMap = new ConcurrentHashMap<>();
 
   private final SatelliteManager mSatelliteManager;
 
@@ -751,5 +759,56 @@ public class SatelliteManagerWrapper {
     }
 
     return output;
+  }
+
+  /** Request to get the signal strength of the satellite connection. */
+  @FlaggedApi(Flags.FLAG_OEM_ENABLED_SATELLITE_FLAG)
+  @NonNull
+  public void requestNtnSignalStrength(
+      @NonNull @CallbackExecutor Executor executor,
+      @NonNull OutcomeReceiver<NtnSignalStrengthWrapper, SatelliteExceptionWrapper> callback) {
+    OutcomeReceiver internalCallback =
+        new OutcomeReceiver<NtnSignalStrength, SatelliteException>() {
+          @Override
+          public void onResult(NtnSignalStrength result) {
+            callback.onResult(new NtnSignalStrengthWrapper(result.getLevel()));
+          }
+
+          @Override
+          public void onError(SatelliteException exception) {
+            callback.onError(new SatelliteExceptionWrapper(exception.getErrorCode()));
+          }
+        };
+    mSatelliteManager.requestNtnSignalStrength(executor, internalCallback);
+  }
+
+  /** Registers for NTN signal strength changed from satellite modem. */
+  @FlaggedApi(Flags.FLAG_OEM_ENABLED_SATELLITE_FLAG)
+  @SatelliteResult public int registerForNtnSignalStrengthChanged(
+      @NonNull @CallbackExecutor Executor executor,
+      @NonNull NtnSignalStrengthCallbackWrapper callback) {
+    NtnSignalStrengthCallback internalCallback =
+        new NtnSignalStrengthCallback() {
+          @Override
+          public void onNtnSignalStrengthChanged(@NonNull NtnSignalStrength ntnSignalStrength) {
+            callback.onNtnSignalStrengthChanged(
+                new NtnSignalStrengthWrapper(ntnSignalStrength.getLevel()));
+          }
+        };
+    sNtnSignalStrengthCallbackWrapperMap.put(callback, internalCallback);
+    return mSatelliteManager.registerForNtnSignalStrengthChanged(executor, internalCallback);
+  }
+
+  /**
+   * Unregisters for NTN signal strength changed from satellite modem.
+   * If callback was not registered before, the request will be ignored.
+   */
+  @FlaggedApi(Flags.FLAG_OEM_ENABLED_SATELLITE_FLAG)
+  public void unregisterForNtnSignalStrengthChanged(
+      @NonNull NtnSignalStrengthCallbackWrapper callback) {
+    NtnSignalStrengthCallback internalCallback = sNtnSignalStrengthCallbackWrapperMap.get(callback);
+    if (internalCallback != null) {
+      mSatelliteManager.unregisterForNtnSignalStrengthChanged(internalCallback);
+    }
   }
 }
