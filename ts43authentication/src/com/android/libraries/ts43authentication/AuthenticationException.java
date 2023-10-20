@@ -122,7 +122,15 @@ public class AuthenticationException extends Exception {
     private final int mHttpStatusCode;
     private final String mRetryAfter;
 
-    private AuthenticationException(@AuthenticationError int error, int httpStatusCode,
+    /**
+     * Create an AuthenticationException by setting all fields manually.
+     *
+     * @param error The authentication error.
+     * @param httpStatusCode The HTTP status code.
+     * @param retryAfter The {@code Retry-After} header from the HTTP response.
+     * @param message The detailed message with more information about the exception.
+     */
+    public AuthenticationException(@AuthenticationError int error, int httpStatusCode,
             String retryAfter, String message) {
         super(message);
         mError = error;
@@ -134,7 +142,7 @@ public class AuthenticationException extends Exception {
      * Create an AuthenticationException for the given {@link AuthenticationError}.
      *
      * @param error The authentication error.
-     * @param message The detail message with more information about the exception.
+     * @param message The detailed message with more information about the exception.
      */
     public AuthenticationException(int error, String message) {
         this(error, HTTP_STATUS_CODE_UNSPECIFIED, RETRY_AFTER_UNSPECIFIED, message);
