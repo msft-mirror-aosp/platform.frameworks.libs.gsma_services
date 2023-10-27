@@ -26,6 +26,8 @@ import android.annotation.Nullable;
 import android.content.Context;
 import android.os.CancellationSignal;
 import android.os.OutcomeReceiver;
+import android.telephony.SubscriptionInfo;
+import android.telephony.SubscriptionManager;
 import android.telephony.satellite.AntennaPosition;
 import android.telephony.satellite.NtnSignalStrength;
 import android.telephony.satellite.NtnSignalStrengthCallback;
@@ -37,11 +39,15 @@ import android.telephony.satellite.SatelliteManager;
 import android.telephony.satellite.SatelliteProvisionStateCallback;
 import android.telephony.satellite.SatelliteStateCallback;
 import android.telephony.satellite.SatelliteTransmissionUpdateCallback;
+
 import com.android.internal.telephony.flags.Flags;
+import com.android.telephony.Rlog;
+
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.time.Duration;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
@@ -74,9 +80,11 @@ public class SatelliteManagerWrapper {
       sNtnSignalStrengthCallbackWrapperMap = new ConcurrentHashMap<>();
 
   private final SatelliteManager mSatelliteManager;
+  private final SubscriptionManager mSubscriptionManager;
 
   SatelliteManagerWrapper(Context context) {
-    mSatelliteManager = (SatelliteManager) context.getSystemService("satellite");
+    mSatelliteManager = context.getSystemService(SatelliteManager.class);
+    mSubscriptionManager = context.getSystemService(SubscriptionManager.class);
   }
 
   /**
@@ -810,5 +818,32 @@ public class SatelliteManagerWrapper {
     if (internalCallback != null) {
       mSatelliteManager.unregisterForNtnSignalStrengthChanged(internalCallback);
     }
+  }
+
+  /**
+   * Wrapper API to provide a way to check if the subscription is exclusively for non-terrestrial
+   * networks.
+   *
+   * @param subId The unique SubscriptionInfo key in database.
+   * @return {@code true} if it is a non-terrestrial network subscription, {@code false}
+   * otherwise.
+   * Note: The method returns {@code false} if the parameter is invalid or any other error occurs.
+   */
+  @FlaggedApi(Flags.FLAG_OEM_ENABLED_SATELLITE_FLAG)
+  public boolean isOnlyNonTerrestrialNetworkSubscription(int subId) {
+    List<SubscriptionInfo> subInfoList = mSubscriptionManager.getAvailableSubscriptionInfoList();
+
+    for (SubscriptionInfo subInfo : subInfoList) {
+      if (subInfo.getSubscriptionId() == subId) {
+        logd("found matched subscription info");
+        return subInfo.isOnlyNonTerrestrialNetwork();
+      }
+    }
+    logd("failed to found matched subscription info");
+    return false;
+  }
+
+  private void logd(String message) {
+    Rlog.d(TAG, message);
   }
 }
