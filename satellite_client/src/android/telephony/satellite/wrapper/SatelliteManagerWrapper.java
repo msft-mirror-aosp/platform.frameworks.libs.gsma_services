@@ -797,9 +797,9 @@ public class SatelliteManagerWrapper {
 
   /** Registers for NTN signal strength changed from satellite modem. */
   @FlaggedApi(Flags.FLAG_OEM_ENABLED_SATELLITE_FLAG)
-  @SatelliteResult public int registerForNtnSignalStrengthChanged(
+  public void registerForNtnSignalStrengthChanged(
       @NonNull @CallbackExecutor Executor executor,
-      @NonNull NtnSignalStrengthCallbackWrapper callback) {
+      @NonNull NtnSignalStrengthCallbackWrapper callback) throws SatelliteException {
     NtnSignalStrengthCallback internalCallback =
         new NtnSignalStrengthCallback() {
           @Override
@@ -809,7 +809,11 @@ public class SatelliteManagerWrapper {
           }
         };
     sNtnSignalStrengthCallbackWrapperMap.put(callback, internalCallback);
-    return mSatelliteManager.registerForNtnSignalStrengthChanged(executor, internalCallback);
+    try {
+      mSatelliteManager.registerForNtnSignalStrengthChanged(executor, internalCallback);
+    } catch (SatelliteException ex) {
+      throw ex;
+    }
   }
 
   /**
@@ -821,7 +825,11 @@ public class SatelliteManagerWrapper {
       @NonNull NtnSignalStrengthCallbackWrapper callback) {
     NtnSignalStrengthCallback internalCallback = sNtnSignalStrengthCallbackWrapperMap.get(callback);
     if (internalCallback != null) {
-      mSatelliteManager.unregisterForNtnSignalStrengthChanged(internalCallback);
+      try {
+        mSatelliteManager.unregisterForNtnSignalStrengthChanged(internalCallback);
+      } catch (Exception ex) {
+        throw ex;
+      }
     }
   }
 
