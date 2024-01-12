@@ -37,8 +37,8 @@ import android.telephony.satellite.SatelliteCapabilitiesCallback;
 import android.telephony.satellite.SatelliteDatagram;
 import android.telephony.satellite.SatelliteDatagramCallback;
 import android.telephony.satellite.SatelliteManager;
+import android.telephony.satellite.SatelliteModemStateCallback;
 import android.telephony.satellite.SatelliteProvisionStateCallback;
-import android.telephony.satellite.SatelliteStateCallback;
 import android.telephony.satellite.SatelliteTransmissionUpdateCallback;
 
 import com.android.internal.telephony.flags.Flags;
@@ -69,8 +69,9 @@ public class SatelliteManagerWrapper {
           SatelliteProvisionStateCallbackWrapper, SatelliteProvisionStateCallback>
       sSatelliteProvisionStateCallbackWrapperMap = new ConcurrentHashMap<>();
 
-  private static final ConcurrentHashMap<SatelliteStateCallbackWrapper, SatelliteStateCallback>
-      sSatelliteStateCallbackWrapperMap = new ConcurrentHashMap<>();
+  private static final ConcurrentHashMap<SatelliteModemStateCallbackWrapper,
+          SatelliteModemStateCallback> sSatelliteModemStateCallbackWrapperMap =
+          new ConcurrentHashMap<>();
 
   private static final ConcurrentHashMap<
           SatelliteTransmissionUpdateCallbackWrapper, SatelliteTransmissionUpdateCallback>
@@ -619,14 +620,14 @@ public class SatelliteManagerWrapper {
   @SatelliteResult
   public int registerForSatelliteModemStateChanged(
       @NonNull @CallbackExecutor Executor executor,
-      @NonNull SatelliteStateCallbackWrapper callback) {
-    SatelliteStateCallback internalCallback =
-        new SatelliteStateCallback() {
+      @NonNull SatelliteModemStateCallbackWrapper callback) {
+    SatelliteModemStateCallback internalCallback =
+        new SatelliteModemStateCallback() {
           public void onSatelliteModemStateChanged(@SatelliteModemState int state) {
             callback.onSatelliteModemStateChanged(state);
           }
         };
-    sSatelliteStateCallbackWrapperMap.put(callback, internalCallback);
+    sSatelliteModemStateCallbackWrapperMap.put(callback, internalCallback);
 
     int result =
         mSatelliteManager.registerForSatelliteModemStateChanged(executor, internalCallback);
@@ -638,8 +639,9 @@ public class SatelliteManagerWrapper {
    * before, the request will be ignored.
    */
   public void unregisterForSatelliteModemStateChanged(
-      @NonNull SatelliteStateCallbackWrapper callback) {
-    SatelliteStateCallback internalCallback = sSatelliteStateCallbackWrapperMap.get(callback);
+      @NonNull SatelliteModemStateCallbackWrapper callback) {
+    SatelliteModemStateCallback internalCallback = sSatelliteModemStateCallbackWrapperMap.get(
+            callback);
     if (internalCallback != null) {
       mSatelliteManager.unregisterForSatelliteModemStateChanged(internalCallback);
     }
