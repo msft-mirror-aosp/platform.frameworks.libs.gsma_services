@@ -313,6 +313,8 @@ public class SatelliteManagerWrapper {
   public static final int SATELLITE_RESULT_REQUEST_IN_PROGRESS = 21;
   /** Satellite modem is currently busy due to which current request cannot be processed. */
   public static final int SATELLITE_RESULT_MODEM_BUSY = 22;
+  /** Telephony process is not currently available or satellite is not supported. */
+  public static final int SATELLITE_RESULT_ILLEGAL_STATE = 23;
 
   /** @hide */
   @IntDef(
@@ -340,7 +342,8 @@ public class SatelliteManagerWrapper {
         SATELLITE_RESULT_NOT_AUTHORIZED,
         SATELLITE_RESULT_NOT_SUPPORTED,
         SATELLITE_RESULT_REQUEST_IN_PROGRESS,
-        SATELLITE_RESULT_MODEM_BUSY
+        SATELLITE_RESULT_MODEM_BUSY,
+        SATELLITE_RESULT_ILLEGAL_STATE
       })
   @Retention(RetentionPolicy.SOURCE)
   public @interface SatelliteResult {}
@@ -783,15 +786,15 @@ public class SatelliteManagerWrapper {
       @NonNull @CallbackExecutor Executor executor,
       @NonNull OutcomeReceiver<NtnSignalStrengthWrapper, SatelliteExceptionWrapper> callback) {
     OutcomeReceiver internalCallback =
-        new OutcomeReceiver<NtnSignalStrength, SatelliteException>() {
-          @Override
-          public void onResult(NtnSignalStrength result) {
-            callback.onResult(new NtnSignalStrengthWrapper(result.getLevel()));
-          }
+            new OutcomeReceiver<NtnSignalStrength, SatelliteException>() {
+              @Override
+              public void onResult(NtnSignalStrength result) {
+                callback.onResult(new NtnSignalStrengthWrapper(result.getLevel()));
+              }
 
-          @Override
-          public void onError(SatelliteException exception) {
-            callback.onError(new SatelliteExceptionWrapper(exception.getErrorCode()));
+              @Override
+              public void onError(SatelliteException exception) {
+                callback.onError(new SatelliteExceptionWrapper(exception.getErrorCode()));
           }
         };
     mSatelliteManager.requestNtnSignalStrength(executor, internalCallback);
@@ -801,7 +804,7 @@ public class SatelliteManagerWrapper {
   @FlaggedApi(Flags.FLAG_OEM_ENABLED_SATELLITE_FLAG)
   public void registerForNtnSignalStrengthChanged(
       @NonNull @CallbackExecutor Executor executor,
-      @NonNull NtnSignalStrengthCallbackWrapper callback) throws SatelliteException {
+      @NonNull NtnSignalStrengthCallbackWrapper callback) {
     NtnSignalStrengthCallback internalCallback =
         new NtnSignalStrengthCallback() {
           @Override
@@ -811,11 +814,7 @@ public class SatelliteManagerWrapper {
           }
         };
     sNtnSignalStrengthCallbackWrapperMap.put(callback, internalCallback);
-    try {
-      mSatelliteManager.registerForNtnSignalStrengthChanged(executor, internalCallback);
-    } catch (SatelliteException ex) {
-      throw ex;
-    }
+    mSatelliteManager.registerForNtnSignalStrengthChanged(executor, internalCallback);
   }
 
   /**
