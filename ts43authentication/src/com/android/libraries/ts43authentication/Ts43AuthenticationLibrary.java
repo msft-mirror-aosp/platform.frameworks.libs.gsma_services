@@ -22,6 +22,7 @@ import android.content.pm.PackageManager;
 import android.content.pm.Signature;
 import android.content.pm.SigningInfo;
 import android.os.Binder;
+import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.Message;
@@ -412,8 +413,14 @@ public class Ts43AuthenticationLibrary extends Handler {
     @Nullable private Signature[] getMainPackageSignatures(String packageName) {
         PackageInfo packageInfo;
         try {
-            packageInfo = mPackageManager.getPackageInfo(packageName,
-                    PackageManager.PackageInfoFlags.of(PackageManager.GET_SIGNING_CERTIFICATES));
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+                packageInfo = mPackageManager.getPackageInfo(packageName,
+                        PackageManager.GET_SIGNING_CERTIFICATES);
+            } else {
+                packageInfo = mPackageManager.getPackageInfo(packageName,
+                        PackageManager.PackageInfoFlags.of(
+                                PackageManager.GET_SIGNING_CERTIFICATES));
+            }
         } catch (PackageManager.NameNotFoundException e) {
             Log.e(TAG, "Unable to find package name: " + packageName);
             return null;
