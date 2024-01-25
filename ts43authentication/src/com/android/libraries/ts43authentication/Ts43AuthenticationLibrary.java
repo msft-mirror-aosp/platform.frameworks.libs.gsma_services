@@ -44,7 +44,6 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
 import java.util.ArrayList;
-import java.util.HexFormat;
 import java.util.List;
 import java.util.concurrent.Executor;
 import java.util.concurrent.locks.ReentrantLock;
@@ -373,7 +372,7 @@ public class Ts43AuthenticationLibrary extends Handler {
         for (Signature signature : signatures) {
             byte[] signatureHash = md.digest(signature.toByteArray());
             for (String certificate : allowedCertificates) {
-                byte[] certificateHash = HexFormat.of().parseHex(certificate);
+                byte[] certificateHash = hexStringToBytes(certificate);
                 if (Arrays.equals(signatureHash, certificateHash)) {
                     Log.d(TAG, "Found matching certificate for package " + packageName + ": "
                             + certificate);
@@ -413,7 +412,7 @@ public class Ts43AuthenticationLibrary extends Handler {
     @Nullable private Signature[] getMainPackageSignatures(String packageName) {
         PackageInfo packageInfo;
         try {
-            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+            if (Build.VERSION.SDK_INT < 33) {
                 packageInfo = mPackageManager.getPackageInfo(packageName,
                         PackageManager.GET_SIGNING_CERTIFICATES);
             } else {
@@ -444,6 +443,23 @@ public class Ts43AuthenticationLibrary extends Handler {
                     + Arrays.toString(signatures));
         }
         return signatures;
+    }
+
+    private byte[] hexStringToBytes(@Nullable String hex) {
+        if (hex == null) return null;
+
+        int length = hex.length();
+        byte[] ret = new byte[length / 2];
+
+        for (int i = 0; i < length; i += 2) {
+            ret[i / 2] =
+                    (byte) ((hexCharToInt(hex.charAt(i)) << 4) | hexCharToInt(hex.charAt(i + 1)));
+        }
+        return ret;
+    }
+
+    private int hexCharToInt(char hex) {
+        return Integer.parseInt(String.valueOf(hex), 16);
     }
 
     private boolean isCallingPackageAllowed(@Nullable String[] allowedPackageInfo,
