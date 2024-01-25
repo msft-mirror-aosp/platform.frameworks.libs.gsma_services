@@ -17,6 +17,9 @@ java_library {
         "app-compat-annotations",
         "unsupportedappusage",
     ],
+    required: [
+        "android.telephony.satellite.xml",
+    ],
     optimize: {
         ignore_warnings: false,
         proguard_flags_files: ["proguard.flags"],
@@ -29,4 +32,3 @@ prebuilt_etc {
     system_ext_specific: true,
     src: "android.telephony.satellite.xml",
 }
-
