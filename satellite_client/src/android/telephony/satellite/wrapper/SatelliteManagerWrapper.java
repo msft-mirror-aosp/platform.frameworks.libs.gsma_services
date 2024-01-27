@@ -389,17 +389,17 @@ public class SatelliteManagerWrapper {
    * enabled, this may also disable the cellular modem, and if the satellite modem is disabled, this
    * may also re-enable the cellular modem.
    */
-  public void requestSatelliteEnabled(
+  public void requestEnabled(
       boolean enableSatellite,
       boolean enableDemoMode,
       @NonNull @CallbackExecutor Executor executor,
       @SatelliteResult @NonNull Consumer<Integer> resultListener) {
-    mSatelliteManager.requestSatelliteEnabled(
+    mSatelliteManager.requestEnabled(
         enableSatellite, enableDemoMode, executor, resultListener);
   }
 
   /** Request to get whether the satellite modem is enabled. */
-  public void requestIsSatelliteEnabled(
+  public void requestIsEnabled(
       @NonNull @CallbackExecutor Executor executor,
       @NonNull OutcomeReceiver<Boolean, SatelliteExceptionWrapper> callback) {
     OutcomeReceiver internalCallback =
@@ -414,7 +414,7 @@ public class SatelliteManagerWrapper {
             callback.onError(new SatelliteExceptionWrapper(exception.getErrorCode()));
           }
         };
-    mSatelliteManager.requestIsSatelliteEnabled(executor, internalCallback);
+    mSatelliteManager.requestIsEnabled(executor, internalCallback);
   }
 
   /** Request to get whether the satellite service demo mode is enabled. */
@@ -437,7 +437,7 @@ public class SatelliteManagerWrapper {
   }
 
   /** Request to get whether the satellite service is supported on the device. */
-  public void requestIsSatelliteSupported(
+  public void requestIsSupported(
       @NonNull @CallbackExecutor Executor executor,
       @NonNull OutcomeReceiver<Boolean, SatelliteExceptionWrapper> callback) {
     OutcomeReceiver internalCallback =
@@ -452,11 +452,11 @@ public class SatelliteManagerWrapper {
             callback.onError(new SatelliteExceptionWrapper(exception.getErrorCode()));
           }
         };
-    mSatelliteManager.requestIsSatelliteSupported(executor, internalCallback);
+    mSatelliteManager.requestIsSupported(executor, internalCallback);
   }
 
   /** Request to get the {@link SatelliteCapabilities} of the satellite service. */
-  public void requestSatelliteCapabilities(
+  public void requestCapabilities(
       @NonNull @CallbackExecutor Executor executor,
       @NonNull OutcomeReceiver<SatelliteCapabilitiesWrapper, SatelliteExceptionWrapper> callback) {
     OutcomeReceiver internalCallback =
@@ -476,7 +476,7 @@ public class SatelliteManagerWrapper {
             callback.onError(new SatelliteExceptionWrapper(exception.getErrorCode()));
           }
         };
-    mSatelliteManager.requestSatelliteCapabilities(executor, internalCallback);
+    mSatelliteManager.requestCapabilities(executor, internalCallback);
   }
 
   /**
@@ -487,7 +487,7 @@ public class SatelliteManagerWrapper {
    * Once satellite transmission updates begin, position and datagram transfer state updates
    * will be sent through {@link SatelliteTransmissionUpdateCallback}.
    */
-  public void startSatelliteTransmissionUpdates(
+  public void startTransmissionUpdates(
       @NonNull @CallbackExecutor Executor executor,
       @SatelliteResult @NonNull Consumer<Integer> resultListener,
       @NonNull SatelliteTransmissionUpdateCallbackWrapper callback) {
@@ -521,7 +521,7 @@ public class SatelliteManagerWrapper {
         };
     sSatelliteTransmissionUpdateCallbackWrapperMap.put(callback, internalCallback);
 
-    mSatelliteManager.startSatelliteTransmissionUpdates(executor, resultListener, internalCallback);
+    mSatelliteManager.startTransmissionUpdates(executor, resultListener, internalCallback);
   }
 
   /**
@@ -530,14 +530,14 @@ public class SatelliteManagerWrapper {
    * callback is unregistered only on {@link #SATELLITE_RESULT_SUCCESS}. All other results that this
    * operation failed.
    */
-  public void stopSatelliteTransmissionUpdates(
+  public void stopTransmissionUpdates(
       @NonNull SatelliteTransmissionUpdateCallbackWrapper callback,
       @NonNull @CallbackExecutor Executor executor,
       @SatelliteResult @NonNull Consumer<Integer> resultListener) {
     SatelliteTransmissionUpdateCallback internalCallback =
         sSatelliteTransmissionUpdateCallbackWrapperMap.get(callback);
     if (internalCallback != null) {
-      mSatelliteManager.stopSatelliteTransmissionUpdates(
+      mSatelliteManager.stopTransmissionUpdates(
           internalCallback, executor, resultListener);
     }
   }
@@ -546,13 +546,13 @@ public class SatelliteManagerWrapper {
    * Provision the device with a satellite provider. This is needed if the provider allows dynamic
    * registration.
    */
-  public void provisionSatelliteService(
+  public void provisionService(
       @NonNull String token,
       @NonNull byte[] provisionData,
       @Nullable CancellationSignal cancellationSignal,
       @NonNull @CallbackExecutor Executor executor,
       @SatelliteResult @NonNull Consumer<Integer> resultListener) {
-    mSatelliteManager.provisionSatelliteService(
+    mSatelliteManager.provisionService(
         token, provisionData, cancellationSignal, executor, resultListener);
   }
 
@@ -562,16 +562,16 @@ public class SatelliteManagerWrapper {
    * SatelliteProvisionStateCallback#onSatelliteProvisionStateChanged(boolean)} should report as
    * deprovisioned.
    */
-  public void deprovisionSatelliteService(
+  public void deprovisionService(
       @NonNull String token,
       @NonNull @CallbackExecutor Executor executor,
       @SatelliteResult @NonNull Consumer<Integer> resultListener) {
-    mSatelliteManager.deprovisionSatelliteService(token, executor, resultListener);
+    mSatelliteManager.deprovisionService(token, executor, resultListener);
   }
 
   /** Registers for the satellite provision state changed. */
   @SatelliteResult
-  public int registerForSatelliteProvisionStateChanged(
+  public int registerForProvisionStateChanged(
       @NonNull @CallbackExecutor Executor executor,
       @NonNull SatelliteProvisionStateCallbackWrapper callback) {
     SatelliteProvisionStateCallback internalCallback =
@@ -583,7 +583,7 @@ public class SatelliteManagerWrapper {
         };
     sSatelliteProvisionStateCallbackWrapperMap.put(callback, internalCallback);
     int result =
-        mSatelliteManager.registerForSatelliteProvisionStateChanged(executor, internalCallback);
+        mSatelliteManager.registerForProvisionStateChanged(executor, internalCallback);
     return result;
   }
 
@@ -591,17 +591,17 @@ public class SatelliteManagerWrapper {
    * Unregisters for the satellite provision state changed. If callback was not registered before,
    * the request will be ignored.
    */
-  public void unregisterForSatelliteProvisionStateChanged(
+  public void unregisterForProvisionStateChanged(
       @NonNull SatelliteProvisionStateCallbackWrapper callback) {
     SatelliteProvisionStateCallback internalCallback =
         sSatelliteProvisionStateCallbackWrapperMap.get(callback);
     if (internalCallback != null) {
-      mSatelliteManager.unregisterForSatelliteProvisionStateChanged(internalCallback);
+      mSatelliteManager.unregisterForProvisionStateChanged(internalCallback);
     }
   }
 
   /** Request to get whether this device is provisioned with a satellite provider. */
-  public void requestIsSatelliteProvisioned(
+  public void requestIsProvisioned(
       @NonNull @CallbackExecutor Executor executor,
       @NonNull OutcomeReceiver<Boolean, SatelliteExceptionWrapper> callback) {
     OutcomeReceiver internalCallback =
@@ -616,12 +616,12 @@ public class SatelliteManagerWrapper {
             callback.onError(new SatelliteExceptionWrapper(exception.getErrorCode()));
           }
         };
-    mSatelliteManager.requestIsSatelliteProvisioned(executor, internalCallback);
+    mSatelliteManager.requestIsProvisioned(executor, internalCallback);
   }
 
   /** Registers for modem state changed from satellite modem. */
   @SatelliteResult
-  public int registerForSatelliteModemStateChanged(
+  public int registerForModemStateChanged(
       @NonNull @CallbackExecutor Executor executor,
       @NonNull SatelliteModemStateCallbackWrapper callback) {
     SatelliteModemStateCallback internalCallback =
@@ -633,7 +633,7 @@ public class SatelliteManagerWrapper {
     sSatelliteModemStateCallbackWrapperMap.put(callback, internalCallback);
 
     int result =
-        mSatelliteManager.registerForSatelliteModemStateChanged(executor, internalCallback);
+        mSatelliteManager.registerForModemStateChanged(executor, internalCallback);
     return result;
   }
 
@@ -641,18 +641,18 @@ public class SatelliteManagerWrapper {
    * Unregisters for modem state changed from satellite modem. If callback was not registered
    * before, the request will be ignored.
    */
-  public void unregisterForSatelliteModemStateChanged(
+  public void unregisterForModemStateChanged(
       @NonNull SatelliteModemStateCallbackWrapper callback) {
     SatelliteModemStateCallback internalCallback = sSatelliteModemStateCallbackWrapperMap.get(
             callback);
     if (internalCallback != null) {
-      mSatelliteManager.unregisterForSatelliteModemStateChanged(internalCallback);
+      mSatelliteManager.unregisterForModemStateChanged(internalCallback);
     }
   }
 
   /** Register to receive incoming datagrams over satellite. */
   @SatelliteResult
-  public int registerForSatelliteDatagram(
+  public int registerForIncomingDatagram(
       @NonNull @CallbackExecutor Executor executor,
       @NonNull SatelliteDatagramCallbackWrapper callback) {
     SatelliteDatagramCallback internalCallback =
@@ -671,7 +671,7 @@ public class SatelliteManagerWrapper {
           }
         };
     sSatelliteDatagramCallbackWrapperMap.put(callback, internalCallback);
-    int result = mSatelliteManager.registerForSatelliteDatagram(executor, internalCallback);
+    int result = mSatelliteManager.registerForIncomingDatagram(executor, internalCallback);
     return result;
   }
 
@@ -679,18 +679,18 @@ public class SatelliteManagerWrapper {
    * Unregister to stop receiving incoming datagrams over satellite. If callback was not registered
    * before, the request will be ignored.
    */
-  public void unregisterForSatelliteDatagram(@NonNull SatelliteDatagramCallbackWrapper callback) {
+  public void unregisterForIncomingDatagram(@NonNull SatelliteDatagramCallbackWrapper callback) {
     SatelliteDatagramCallback internalCallback = sSatelliteDatagramCallbackWrapperMap.get(callback);
     if (internalCallback != null) {
-      mSatelliteManager.unregisterForSatelliteDatagram(internalCallback);
+      mSatelliteManager.unregisterForIncomingDatagram(internalCallback);
     }
   }
 
   /** Poll pending satellite datagrams over satellite. */
-  public void pollPendingSatelliteDatagrams(
+  public void pollPendingDatagrams(
       @NonNull @CallbackExecutor Executor executor,
       @SatelliteResult @NonNull Consumer<Integer> resultListener) {
-    mSatelliteManager.pollPendingSatelliteDatagrams(executor, resultListener);
+    mSatelliteManager.pollPendingDatagrams(executor, resultListener);
   }
 
   /**
@@ -700,19 +700,19 @@ public class SatelliteManagerWrapper {
    * input to this method. Datagram received here will be passed down to modem without any encoding
    * or encryption.
    */
-  public void sendSatelliteDatagram(
+  public void sendDatagram(
       @DatagramType int datagramType,
       @NonNull SatelliteDatagramWrapper datagram,
       boolean needFullScreenPointingUI,
       @NonNull @CallbackExecutor Executor executor,
       @SatelliteResult @NonNull Consumer<Integer> resultListener) {
     SatelliteDatagram datagramInternal = new SatelliteDatagram(datagram.getSatelliteDatagram());
-    mSatelliteManager.sendSatelliteDatagram(
+    mSatelliteManager.sendDatagram(
         datagramType, datagramInternal, needFullScreenPointingUI, executor, resultListener);
   }
 
   /** Request to get whether satellite communication is allowed for the current location. */
-  public void requestIsSatelliteCommunicationAllowedForCurrentLocation(
+  public void requestIsCommunicationAllowedForCurrentLocation(
       @NonNull @CallbackExecutor Executor executor,
       @NonNull OutcomeReceiver<Boolean, SatelliteExceptionWrapper> callback) {
     OutcomeReceiver internalCallback =
@@ -727,7 +727,7 @@ public class SatelliteManagerWrapper {
             callback.onError(new SatelliteExceptionWrapper(exception.getErrorCode()));
           }
         };
-    mSatelliteManager.requestIsSatelliteCommunicationAllowedForCurrentLocation(
+    mSatelliteManager.requestIsCommunicationAllowedForCurrentLocation(
         executor, internalCallback);
   }
 
@@ -864,7 +864,7 @@ public class SatelliteManagerWrapper {
    * @param callback The callback to handle the satellite capabilities changed event.
    */
   @FlaggedApi(Flags.FLAG_OEM_ENABLED_SATELLITE_FLAG)
-  public int registerForSatelliteCapabilitiesChanged(
+  public int registerForCapabilitiesChanged(
           @NonNull @CallbackExecutor Executor executor,
           @NonNull SatelliteCapabilitiesCallbackWrapper callback) {
     SatelliteCapabilitiesCallback internalCallback =
@@ -876,7 +876,7 @@ public class SatelliteManagerWrapper {
                             transformToAntennaPositionWrapperMap(
                                     capabilities.getAntennaPositionMap())));
     sSatelliteCapabilitiesCallbackWrapperMap.put(callback, internalCallback);
-    return mSatelliteManager.registerForSatelliteCapabilitiesChanged(executor, internalCallback);
+    return mSatelliteManager.registerForCapabilitiesChanged(executor, internalCallback);
   }
 
   /**
@@ -886,12 +886,12 @@ public class SatelliteManagerWrapper {
    * @param callback The callback that was passed to.
    */
   @FlaggedApi(Flags.FLAG_OEM_ENABLED_SATELLITE_FLAG)
-  public void unregisterForSatelliteCapabilitiesChanged(
+  public void unregisterForCapabilitiesChanged(
           @NonNull SatelliteCapabilitiesCallbackWrapper callback) {
     SatelliteCapabilitiesCallback internalCallback =
             sSatelliteCapabilitiesCallbackWrapperMap.get(callback);
     if (internalCallback != null) {
-      mSatelliteManager.unregisterForSatelliteCapabilitiesChanged(internalCallback);
+      mSatelliteManager.unregisterForCapabilitiesChanged(internalCallback);
     }
   }
 
