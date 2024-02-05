@@ -29,6 +29,7 @@ import android.os.OutcomeReceiver;
 import android.telephony.SubscriptionInfo;
 import android.telephony.SubscriptionManager;
 import android.telephony.satellite.AntennaPosition;
+import android.telephony.satellite.EnableRequestAttributes;
 import android.telephony.satellite.NtnSignalStrength;
 import android.telephony.satellite.NtnSignalStrengthCallback;
 import android.telephony.satellite.PointingInfo;
@@ -392,10 +393,13 @@ public class SatelliteManagerWrapper {
   public void requestEnabled(
       boolean enableSatellite,
       boolean enableDemoMode,
+      boolean isEmergency,
       @NonNull @CallbackExecutor Executor executor,
       @SatelliteResult @NonNull Consumer<Integer> resultListener) {
-    mSatelliteManager.requestEnabled(
-        enableSatellite, enableDemoMode, executor, resultListener);
+    mSatelliteManager.requestEnabled(new EnableRequestAttributes.Builder(enableSatellite)
+            .setDemoMode(enableDemoMode)
+            .setEmergencyMode(isEmergency)
+            .build(), executor, resultListener);
   }
 
   /** Request to get whether the satellite modem is enabled. */
@@ -434,6 +438,25 @@ public class SatelliteManagerWrapper {
           }
         };
     mSatelliteManager.requestIsDemoModeEnabled(executor, internalCallback);
+  }
+
+  /** Request to get whether the satellite service is enabled for emergency mode */
+  public void requestIsEmergencyModeEnabled(
+          @NonNull @CallbackExecutor Executor executor,
+          @NonNull OutcomeReceiver<Boolean, SatelliteExceptionWrapper> callback) {
+    OutcomeReceiver internalCallback =
+        new OutcomeReceiver<Boolean, SatelliteException>() {
+          @Override
+          public void onResult(Boolean result) {
+            callback.onResult(result);
+          }
+
+          @Override
+          public void onError(SatelliteException exception) {
+            callback.onError(new SatelliteExceptionWrapper(exception.getErrorCode()));
+          }
+        };
+    mSatelliteManager.requestIsEmergencyModeEnabled(executor, internalCallback);
   }
 
   /** Request to get whether the satellite service is supported on the device. */
