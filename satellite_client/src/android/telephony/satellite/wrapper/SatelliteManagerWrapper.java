@@ -16,6 +16,8 @@
 
 package android.telephony.satellite.wrapper;
 
+import static android.telephony.AccessNetworkConstants.TRANSPORT_TYPE_WWAN;
+import static android.telephony.NetworkRegistrationInfo.DOMAIN_PS;
 import static android.telephony.satellite.SatelliteManager.SatelliteException;
 
 import android.annotation.CallbackExecutor;
@@ -26,9 +28,13 @@ import android.annotation.Nullable;
 import android.content.Context;
 import android.os.CancellationSignal;
 import android.os.OutcomeReceiver;
+import android.telephony.NetworkRegistrationInfo;
+import android.telephony.ServiceState;
 import android.telephony.SubscriptionInfo;
 import android.telephony.SubscriptionManager;
+import android.telephony.TelephonyManager;
 import android.telephony.satellite.AntennaPosition;
+import android.telephony.satellite.EnableRequestAttributes;
 import android.telephony.satellite.NtnSignalStrength;
 import android.telephony.satellite.NtnSignalStrengthCallback;
 import android.telephony.satellite.PointingInfo;
@@ -47,12 +53,15 @@ import com.android.telephony.Rlog;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 /**
  * Wrapper for satellite operations such as provisioning, pointing, messaging, location sharing,
@@ -87,10 +96,12 @@ public class SatelliteManagerWrapper {
 
   private final SatelliteManager mSatelliteManager;
   private final SubscriptionManager mSubscriptionManager;
+  private final TelephonyManager mTelephonyManager;
 
   SatelliteManagerWrapper(Context context) {
     mSatelliteManager = context.getSystemService(SatelliteManager.class);
     mSubscriptionManager = context.getSystemService(SubscriptionManager.class);
+    mTelephonyManager = context.getSystemService(TelephonyManager.class);
   }
 
   /**
@@ -369,6 +380,34 @@ public class SatelliteManagerWrapper {
   @Retention(RetentionPolicy.SOURCE)
   public @interface DeviceHoldPosition {}
 
+  /**
+   * Satellite communication restricted by user.
+   * @hide
+   */
+  public static final int SATELLITE_COMMUNICATION_RESTRICTION_REASON_USER = 0;
+
+  /**
+   * Satellite communication restricted by geolocation. This can be
+   * triggered based upon geofence input provided by carrier to enable or disable satellite.
+   */
+  public static final int SATELLITE_COMMUNICATION_RESTRICTION_REASON_GEOLOCATION = 1;
+
+  /**
+   * Satellite communication restricted by entitlement server. This can be triggered based on
+   * the EntitlementStatus value received from the entitlement server to enable or disable
+   * satellite.
+   */
+  public static final int SATELLITE_COMMUNICATION_RESTRICTION_REASON_ENTITLEMENT = 2;
+
+  /** @hide */
+  @IntDef(prefix = "SATELLITE_COMMUNICATION_RESTRICTION_REASON_", value = {
+          SATELLITE_COMMUNICATION_RESTRICTION_REASON_USER,
+          SATELLITE_COMMUNICATION_RESTRICTION_REASON_GEOLOCATION,
+          SATELLITE_COMMUNICATION_RESTRICTION_REASON_ENTITLEMENT
+  })
+  @Retention(RetentionPolicy.SOURCE)
+  public @interface SatelliteCommunicationRestrictionReason {}
+
   /** Exception from the satellite service containing the {@link SatelliteResult} error code. */
   public static class SatelliteExceptionWrapper extends Exception {
     private final int mErrorCode;
@@ -392,10 +431,13 @@ public class SatelliteManagerWrapper {
   public void requestEnabled(
       boolean enableSatellite,
       boolean enableDemoMode,
+      boolean isEmergency,
       @NonNull @CallbackExecutor Executor executor,
       @SatelliteResult @NonNull Consumer<Integer> resultListener) {
-    mSatelliteManager.requestEnabled(
-        enableSatellite, enableDemoMode, executor, resultListener);
+    mSatelliteManager.requestEnabled(new EnableRequestAttributes.Builder(enableSatellite)
+            .setDemoMode(enableDemoMode)
+            .setEmergencyMode(isEmergency)
+            .build(), executor, resultListener);
   }
 
   /** Request to get whether the satellite modem is enabled. */
@@ -434,6 +476,25 @@ public class SatelliteManagerWrapper {
           }
         };
     mSatelliteManager.requestIsDemoModeEnabled(executor, internalCallback);
+  }
+
+  /** Request to get whether the satellite service is enabled for emergency mode */
+  public void requestIsEmergencyModeEnabled(
+          @NonNull @CallbackExecutor Executor executor,
+          @NonNull OutcomeReceiver<Boolean, SatelliteExceptionWrapper> callback) {
+    OutcomeReceiver internalCallback =
+        new OutcomeReceiver<Boolean, SatelliteException>() {
+          @Override
+          public void onResult(Boolean result) {
+            callback.onResult(result);
+          }
+
+          @Override
+          public void onError(SatelliteException exception) {
+            callback.onError(new SatelliteExceptionWrapper(exception.getErrorCode()));
+          }
+        };
+    mSatelliteManager.requestIsEmergencyModeEnabled(executor, internalCallback);
   }
 
   /** Request to get whether the satellite service is supported on the device. */
@@ -893,6 +954,230 @@ public class SatelliteManagerWrapper {
     if (internalCallback != null) {
       mSatelliteManager.unregisterForCapabilitiesChanged(internalCallback);
     }
+  }
+
+  /**
+   * Wrapper API to provide whether current network is non-terrestrial network or not.
+   *
+   * @param subId Subscription ID.
+   *
+   * @return {@code true} if current network is a non-terrestrial network, {@code false} otherwise.
+   * Note: The method returns {@code false} if the no available network info or any other error
+   * occurs.
+   */
+  public boolean isNonTerrestrialNetwork(int subId) {
+    ServiceState ss = getServiceStateForSubscriptionId(subId);
+
+    if (ss == null) {
+      logd("isNonTerrestrialNetwork(): ServiceState is null, return");
+      return false;
+    }
+
+    NetworkRegistrationInfo nri = ss.getNetworkRegistrationInfo(DOMAIN_PS, TRANSPORT_TYPE_WWAN);
+    if (nri == null) {
+      logd("isNonTerrestrialNetwork(): NetworkRegistrationInfo is null, return");
+      return false;
+    }
+
+    boolean isNonTerrestrialNetwork = nri.isNonTerrestrialNetwork();
+    logd("isNonTerrestrialNetwork = " + isNonTerrestrialNetwork);
+    return isNonTerrestrialNetwork;
+  }
+
+  /**
+   * Wrapper API to provide the list of available services.
+   *
+   * @param subId Subscription ID.
+   *
+   * @return the list of available service types for given subscription ID.
+   * Note: The method returns empty list if no service is available or any other error occurs.
+   */
+  @NonNull
+  public List<Integer> getAvailableServices(int subId) {
+    ServiceState ss = getServiceStateForSubscriptionId(subId);
+    if (ss == null) {
+      logd("getAvailableServices(): ServiceState is null, return");
+      return new ArrayList<>();
+    }
+
+    NetworkRegistrationInfo nri = ss.getNetworkRegistrationInfo(DOMAIN_PS, TRANSPORT_TYPE_WWAN);
+    if (nri == null) {
+      logd("getAvailableServices(): NetworkRegistrationInfo is null, return empty list");
+      return new ArrayList<>();
+    }
+
+    List<Integer> serviceType = nri.getAvailableServices();
+    logd("getAvailableServices() : serviceType=" + serviceType.stream().map(
+            Object::toString).collect(Collectors.joining(", ")));
+    return serviceType;
+  }
+
+  /**
+   * Wrapper API to get whether device is connected to a non-terrestrial network.
+   *
+   * @param subId Subscription ID.
+   *
+   * @return {@code true} if device is connected to a non-terrestrial network, {@code false}
+   * otherwise.
+   * Note: The method returns {@code false} if the no available network info or any other error
+   * occurs.
+   */
+  public boolean isUsingNonTerrestrialNetwork(int subId) {
+    ServiceState ss = getServiceStateForSubscriptionId(subId);
+
+    if (ss == null) {
+      logd("isUsingNonTerrestrialNetwork(): ServiceState is null, return");
+      return false;
+    }
+
+    boolean isUsingNonTerrestrialNetwork = ss.isUsingNonTerrestrialNetwork();
+    logd("isUsingNonTerrestrialNetwork() returns " + isUsingNonTerrestrialNetwork);
+    return isUsingNonTerrestrialNetwork;
+  }
+
+  /**
+   * User request to enable or disable carrier supported satellite plmn scan and attach by modem.
+   * <p>
+   * This API should be called by only settings app to pass down the user input for
+   * enabling/disabling satellite. This user input will be persisted across device reboots.
+   * <p>
+   * Satellite will be enabled only when the following conditions are met:
+   * <ul>
+   * <li>Users want to enable it.</li>
+   * <li>There is no satellite communication restriction, which is added by
+   * {@link #addAttachRestrictionForCarrier(int, int, Executor, Consumer)}</li>
+   * <li>The carrier config {@link
+   * android.telephony.CarrierConfigManager#KEY_SATELLITE_ATTACH_SUPPORTED_BOOL} is set to
+   * {@code true}.</li>
+   * </ul>
+   *
+   * @param subId The subscription ID of the carrier.
+   * @param enableSatellite {@code true} to enable the satellite and {@code false} to disable.
+   * @param executor The executor on which the error code listener will be called.
+   * @param resultListener Listener for the {@link SatelliteResult} result of the operation.
+   *
+   * @throws SecurityException if the caller doesn't have required permission.
+   * @throws IllegalArgumentException if the subscription is invalid.
+   */
+  public void requestAttachEnabledForCarrier(int subId, boolean enableSatellite,
+          @NonNull @CallbackExecutor Executor executor,
+          @SatelliteResult @NonNull Consumer<Integer> resultListener) {
+    mSatelliteManager.requestAttachEnabledForCarrier(subId, enableSatellite, executor,
+            resultListener);
+  }
+
+  /**
+   * Request to get whether the carrier supported satellite plmn scan and attach by modem is
+   * enabled by user.
+   *
+   * @param subId The subscription ID of the carrier.
+   * @param executor The executor on which the callback will be called.
+   * @param callback The callback object to which the result will be delivered.
+   *                 If the request is successful, {@link OutcomeReceiver#onResult(Object)}
+   *                 will return a {@code boolean} with value {@code true} if the satellite
+   *                 is enabled and {@code false} otherwise.
+   *                 If the request is not successful, {@link OutcomeReceiver#onError(Throwable)}
+   *                 will return a {@link SatelliteExceptionWrapper} with the
+   *                 {@link SatelliteResult}.
+   *
+   * @throws SecurityException if the caller doesn't have required permission.
+   * @throws IllegalStateException if the Telephony process is not currently available.
+   * @throws IllegalArgumentException if the subscription is invalid.
+   */
+  public void requestIsAttachEnabledForCarrier(int subId,
+          @NonNull @CallbackExecutor Executor executor,
+          @NonNull OutcomeReceiver<Boolean, SatelliteExceptionWrapper> callback) {
+    OutcomeReceiver internalCallback =
+            new OutcomeReceiver<Boolean, SatelliteException>() {
+              @Override
+              public void onResult(Boolean result) {
+                callback.onResult(result);
+              }
+
+              @Override
+              public void onError(SatelliteException exception) {
+                callback.onError(new SatelliteExceptionWrapper(exception.getErrorCode()));
+              }
+            };
+    mSatelliteManager.requestIsAttachEnabledForCarrier(subId, executor, internalCallback);
+  }
+
+  /**
+   * Add a restriction reason for disallowing carrier supported satellite plmn scan and attach
+   * by modem.
+   *
+   * @param subId The subscription ID of the carrier.
+   * @param reason Reason for disallowing satellite communication.
+   * @param executor The executor on which the error code listener will be called.
+   * @param resultListener Listener for the {@link SatelliteResult} result of the
+   * operation.
+   *
+   * @throws SecurityException if the caller doesn't have required permission.
+   * @throws IllegalArgumentException if the subscription is invalid.
+   */
+  public void addAttachRestrictionForCarrier(int subId,
+          @SatelliteCommunicationRestrictionReason int reason,
+          @NonNull @CallbackExecutor Executor executor,
+          @SatelliteResult @NonNull Consumer<Integer> resultListener) {
+    mSatelliteManager.addAttachRestrictionForCarrier(subId, reason, executor, resultListener);
+  }
+
+  /**
+   * Remove a restriction reason for disallowing carrier supported satellite plmn scan and attach
+   * by modem.
+   *
+   * @param subId The subscription ID of the carrier.
+   * @param reason Reason for disallowing satellite communication.
+   * @param executor The executor on which the error code listener will be called.
+   * @param resultListener Listener for the {@link SatelliteResult} result of the
+   * operation.
+   *
+   * @throws SecurityException if the caller doesn't have required permission.
+   * @throws IllegalArgumentException if the subscription is invalid.
+   */
+  public void removeAttachRestrictionForCarrier(int subId,
+          @SatelliteCommunicationRestrictionReason int reason,
+          @NonNull @CallbackExecutor Executor executor,
+          @SatelliteResult @NonNull Consumer<Integer> resultListener) {
+    mSatelliteManager.removeAttachRestrictionForCarrier(subId, reason, executor, resultListener);
+  }
+
+  /**
+   * Get reasons for disallowing satellite attach, as requested by
+   * {@link #addAttachRestrictionForCarrier(int, int, Executor, Consumer)}
+   *
+   * @param subId The subscription ID of the carrier.
+   * @return Set of reasons for disallowing satellite communication.
+   *
+   * @throws SecurityException if the caller doesn't have required permission.
+   * @throws IllegalStateException if the Telephony process is not currently available.
+   * @throws IllegalArgumentException if the subscription is invalid.
+   */
+  @SatelliteCommunicationRestrictionReason
+  @NonNull public Set<Integer> getAttachRestrictionReasonsForCarrier(int subId) {
+    return mSatelliteManager.getAttachRestrictionReasonsForCarrier(subId);
+  }
+
+  /**
+   * Get all satellite PLMNs for which attach is enable for carrier.
+   *
+   * @param subId subId The subscription ID of the carrier.
+   *
+   * @return List of plmn for carrier satellite service. If no plmn is available, empty list will
+   * be returned.
+   */
+  @NonNull public List<String> getSatellitePlmnsForCarrier(int subId) {
+    return mSatelliteManager.getSatellitePlmnsForCarrier(subId);
+  }
+
+  @Nullable
+  private ServiceState getServiceStateForSubscriptionId(int subId) {
+    if (!mSubscriptionManager.isValidSubscriptionId(subId)) {
+      return null;
+    }
+
+    TelephonyManager tm = mTelephonyManager.createForSubscriptionId(subId);
+    return tm.getServiceState();
   }
 
   private void logd(String message) {
