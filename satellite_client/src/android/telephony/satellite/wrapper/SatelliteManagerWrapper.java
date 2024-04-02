@@ -45,6 +45,7 @@ import android.telephony.satellite.SatelliteDatagramCallback;
 import android.telephony.satellite.SatelliteManager;
 import android.telephony.satellite.SatelliteModemStateCallback;
 import android.telephony.satellite.SatelliteProvisionStateCallback;
+import android.telephony.satellite.SatelliteSupportedStateCallback;
 import android.telephony.satellite.SatelliteTransmissionUpdateCallback;
 
 import com.android.internal.telephony.flags.Flags;
@@ -93,6 +94,10 @@ public class SatelliteManagerWrapper {
   private static final ConcurrentHashMap<
           SatelliteCapabilitiesCallbackWrapper, SatelliteCapabilitiesCallback>
           sSatelliteCapabilitiesCallbackWrapperMap = new ConcurrentHashMap<>();
+
+  private static final ConcurrentHashMap<
+          SatelliteSupportedStateCallbackWrapper, SatelliteSupportedStateCallback>
+          sSatelliteSupportedStateCallbackWrapperMap = new ConcurrentHashMap<>();
 
   private final SatelliteManager mSatelliteManager;
   private final SubscriptionManager mSubscriptionManager;
@@ -1168,6 +1173,37 @@ public class SatelliteManagerWrapper {
    */
   @NonNull public List<String> getSatellitePlmnsForCarrier(int subId) {
     return mSatelliteManager.getSatellitePlmnsForCarrier(subId);
+  }
+
+  /** Registers for the satellite supported state changed. */
+  @SatelliteResult
+  public int registerForSupportedStateChanged(
+          @NonNull @CallbackExecutor Executor executor,
+          @NonNull SatelliteSupportedStateCallbackWrapper callback) {
+    SatelliteSupportedStateCallback internalCallback =
+            new SatelliteSupportedStateCallback() {
+              @Override
+              public void onSatelliteSupportedStateChanged(boolean supported) {
+                callback.onSatelliteSupportedStateChanged(supported);
+              }
+            };
+    sSatelliteSupportedStateCallbackWrapperMap.put(callback, internalCallback);
+    int result =
+            mSatelliteManager.registerForSupportedStateChanged(executor, internalCallback);
+    return result;
+  }
+
+  /**
+   * Unregisters for the satellite supported state changed. If callback was not registered before,
+   * the request will be ignored.
+   */
+  public void unregisterForSupportedStateChanged(
+          @NonNull SatelliteSupportedStateCallbackWrapper callback) {
+    SatelliteSupportedStateCallback internalCallback =
+            sSatelliteSupportedStateCallbackWrapperMap.get(callback);
+    if (internalCallback != null) {
+      mSatelliteManager.unregisterForSupportedStateChanged(internalCallback);
+    }
   }
 
   @Nullable
