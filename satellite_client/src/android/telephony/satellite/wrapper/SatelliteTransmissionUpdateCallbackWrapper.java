@@ -43,6 +43,20 @@ public interface SatelliteTransmissionUpdateCallbackWrapper {
       @SatelliteManagerWrapper.SatelliteResult int errorCode);
 
   /**
+   * Called when satellite datagram send state changed.
+   *
+   * @param datagramType The datagram type of currently being sent.
+   * @param state The new send datagram transfer state.
+   * @param sendPendingCount The number of datagrams that are currently being sent.
+   * @param errorCode If datagram transfer failed, the reason for failure.
+   *
+   * @hide
+   */
+  void onSendDatagramStateChanged(@SatelliteManagerWrapper.DatagramType int datagramType,
+          @SatelliteManagerWrapper.SatelliteDatagramTransferState int state, int sendPendingCount,
+          @SatelliteManagerWrapper.SatelliteResult int errorCode);
+
+  /**
    * Called when satellite datagram receive state changed.
    *
    * @param state The new receive datagram transfer state.
