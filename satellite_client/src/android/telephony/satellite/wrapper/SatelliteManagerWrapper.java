@@ -129,11 +129,20 @@ public class SatelliteManagerWrapper {
    * Datagram type indicating that the datagram to be sent or received is of type location sharing.
    */
   public static final int DATAGRAM_TYPE_LOCATION_SHARING = 2;
+  /**
+   * This type of datagram is used to keep the device in satellite connected state.
+   */
+  public static final int DATAGRAM_TYPE_KEEP_ALIVE = 3;
 
   /** @hide */
   @IntDef(
       prefix = "DATAGRAM_TYPE_",
-      value = {DATAGRAM_TYPE_UNKNOWN, DATAGRAM_TYPE_SOS_MESSAGE, DATAGRAM_TYPE_LOCATION_SHARING})
+      value = {
+              DATAGRAM_TYPE_UNKNOWN,
+              DATAGRAM_TYPE_SOS_MESSAGE,
+              DATAGRAM_TYPE_LOCATION_SHARING,
+              DATAGRAM_TYPE_KEEP_ALIVE
+      })
   @Retention(RetentionPolicy.SOURCE)
   public @interface DatagramType {}
 
@@ -567,6 +576,15 @@ public class SatelliteManagerWrapper {
               int sendPendingCount,
               @SatelliteResult int errorCode) {
             callback.onSendDatagramStateChanged(state, sendPendingCount, errorCode);
+          }
+
+          @Override
+          public void onSendDatagramStateChanged(
+                  @SatelliteManager.DatagramType int datagramType,
+                  @SatelliteDatagramTransferState int state,
+                  int sendPendingCount,
+                  @SatelliteResult int errorCode) {
+            callback.onSendDatagramStateChanged(datagramType, state, sendPendingCount, errorCode);
           }
 
           @Override
