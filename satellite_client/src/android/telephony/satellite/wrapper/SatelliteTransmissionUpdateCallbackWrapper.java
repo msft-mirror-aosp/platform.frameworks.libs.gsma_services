@@ -52,9 +52,9 @@ public interface SatelliteTransmissionUpdateCallbackWrapper {
    *
    * @hide
    */
-  void onSendDatagramStateChanged(@SatelliteManagerWrapper.DatagramType int datagramType,
+  default void onSendDatagramStateChanged(@SatelliteManagerWrapper.DatagramType int datagramType,
           @SatelliteManagerWrapper.SatelliteDatagramTransferState int state, int sendPendingCount,
-          @SatelliteManagerWrapper.SatelliteResult int errorCode);
+          @SatelliteManagerWrapper.SatelliteResult int errorCode) {}
 
   /**
    * Called when satellite datagram receive state changed.
