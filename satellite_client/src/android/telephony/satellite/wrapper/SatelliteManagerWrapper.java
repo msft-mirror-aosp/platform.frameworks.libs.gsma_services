@@ -45,6 +45,7 @@ import android.telephony.satellite.SatelliteDatagramCallback;
 import android.telephony.satellite.SatelliteManager;
 import android.telephony.satellite.SatelliteModemStateCallback;
 import android.telephony.satellite.SatelliteProvisionStateCallback;
+import android.telephony.satellite.SatelliteSupportedStateCallback;
 import android.telephony.satellite.SatelliteTransmissionUpdateCallback;
 
 import com.android.internal.telephony.flags.Flags;
@@ -94,6 +95,10 @@ public class SatelliteManagerWrapper {
           SatelliteCapabilitiesCallbackWrapper, SatelliteCapabilitiesCallback>
           sSatelliteCapabilitiesCallbackWrapperMap = new ConcurrentHashMap<>();
 
+  private static final ConcurrentHashMap<
+          SatelliteSupportedStateCallbackWrapper, SatelliteSupportedStateCallback>
+          sSatelliteSupportedStateCallbackWrapperMap = new ConcurrentHashMap<>();
+
   private final SatelliteManager mSatelliteManager;
   private final SubscriptionManager mSubscriptionManager;
   private final TelephonyManager mTelephonyManager;
@@ -124,11 +129,20 @@ public class SatelliteManagerWrapper {
    * Datagram type indicating that the datagram to be sent or received is of type location sharing.
    */
   public static final int DATAGRAM_TYPE_LOCATION_SHARING = 2;
+  /**
+   * This type of datagram is used to keep the device in satellite connected state.
+   */
+  public static final int DATAGRAM_TYPE_KEEP_ALIVE = 3;
 
   /** @hide */
   @IntDef(
       prefix = "DATAGRAM_TYPE_",
-      value = {DATAGRAM_TYPE_UNKNOWN, DATAGRAM_TYPE_SOS_MESSAGE, DATAGRAM_TYPE_LOCATION_SHARING})
+      value = {
+              DATAGRAM_TYPE_UNKNOWN,
+              DATAGRAM_TYPE_SOS_MESSAGE,
+              DATAGRAM_TYPE_LOCATION_SHARING,
+              DATAGRAM_TYPE_KEEP_ALIVE
+      })
   @Retention(RetentionPolicy.SOURCE)
   public @interface DatagramType {}
 
@@ -562,6 +576,15 @@ public class SatelliteManagerWrapper {
               int sendPendingCount,
               @SatelliteResult int errorCode) {
             callback.onSendDatagramStateChanged(state, sendPendingCount, errorCode);
+          }
+
+          @Override
+          public void onSendDatagramStateChanged(
+                  @SatelliteManager.DatagramType int datagramType,
+                  @SatelliteDatagramTransferState int state,
+                  int sendPendingCount,
+                  @SatelliteResult int errorCode) {
+            callback.onSendDatagramStateChanged(datagramType, state, sendPendingCount, errorCode);
           }
 
           @Override
@@ -1168,6 +1191,37 @@ public class SatelliteManagerWrapper {
    */
   @NonNull public List<String> getSatellitePlmnsForCarrier(int subId) {
     return mSatelliteManager.getSatellitePlmnsForCarrier(subId);
+  }
+
+  /** Registers for the satellite supported state changed. */
+  @SatelliteResult
+  public int registerForSupportedStateChanged(
+          @NonNull @CallbackExecutor Executor executor,
+          @NonNull SatelliteSupportedStateCallbackWrapper callback) {
+    SatelliteSupportedStateCallback internalCallback =
+            new SatelliteSupportedStateCallback() {
+              @Override
+              public void onSatelliteSupportedStateChanged(boolean supported) {
+                callback.onSatelliteSupportedStateChanged(supported);
+              }
+            };
+    sSatelliteSupportedStateCallbackWrapperMap.put(callback, internalCallback);
+    int result =
+            mSatelliteManager.registerForSupportedStateChanged(executor, internalCallback);
+    return result;
+  }
+
+  /**
+   * Unregisters for the satellite supported state changed. If callback was not registered before,
+   * the request will be ignored.
+   */
+  public void unregisterForSupportedStateChanged(
+          @NonNull SatelliteSupportedStateCallbackWrapper callback) {
+    SatelliteSupportedStateCallback internalCallback =
+            sSatelliteSupportedStateCallbackWrapperMap.get(callback);
+    if (internalCallback != null) {
+      mSatelliteManager.unregisterForSupportedStateChanged(internalCallback);
+    }
   }
 
   @Nullable
