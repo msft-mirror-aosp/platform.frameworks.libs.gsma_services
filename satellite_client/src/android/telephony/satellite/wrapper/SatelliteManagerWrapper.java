@@ -186,6 +186,18 @@ public class SatelliteManagerWrapper {
   /** Satellite modem is unavailable. */
   public static final int SATELLITE_MODEM_STATE_UNAVAILABLE = 5;
   /**
+   * The satellite modem is powered on but the device is not registered to a satellite cell.
+   */
+  public static final int SATELLITE_MODEM_STATE_NOT_CONNECTED = 6;
+  /**
+   * The satellite modem is powered on and the device is registered to a satellite cell.
+   */
+  public static final int SATELLITE_MODEM_STATE_CONNECTED = 7;
+  /**
+   * The satellite modem is being powered on.
+   */
+  public static final int SATELLITE_MODEM_STATE_ENABLING_SATELLITE = 8;
+  /**
    * Satellite modem state is unknown. This generic modem state should be used only when the modem
    * state cannot be mapped to other specific modem states.
    */
@@ -201,6 +213,9 @@ public class SatelliteManagerWrapper {
         SATELLITE_MODEM_STATE_DATAGRAM_RETRYING,
         SATELLITE_MODEM_STATE_OFF,
         SATELLITE_MODEM_STATE_UNAVAILABLE,
+        SATELLITE_MODEM_STATE_NOT_CONNECTED,
+        SATELLITE_MODEM_STATE_CONNECTED,
+        SATELLITE_MODEM_STATE_ENABLING_SATELLITE,
         SATELLITE_MODEM_STATE_UNKNOWN
       })
   @Retention(RetentionPolicy.SOURCE)
@@ -247,6 +262,16 @@ public class SatelliteManagerWrapper {
    */
   public static final int SATELLITE_DATAGRAM_TRANSFER_STATE_RECEIVE_FAILED = 7;
   /**
+   * A transition state indicating that Telephony is waiting for satellite modem to connect to a
+   * satellite network before sending a datagram or polling for datagrams. If the satellite modem
+   * successfully connects to a satellite network, either
+   * {@link #SATELLITE_DATAGRAM_TRANSFER_STATE_SENDING} or
+   * {@link #SATELLITE_DATAGRAM_TRANSFER_STATE_RECEIVING} will be sent. Otherwise,
+   * either {@link #SATELLITE_DATAGRAM_TRANSFER_STATE_SEND_FAILED} or
+   * {@link #SATELLITE_DATAGRAM_TRANSFER_STATE_RECEIVE_FAILED} will be sent.
+   */
+  public static final int SATELLITE_DATAGRAM_TRANSFER_STATE_WAITING_TO_CONNECT = 8;
+  /**
    * The datagram transfer state is unknown. This generic datagram transfer state should be used
    * only when the datagram transfer state cannot be mapped to other specific datagram transfer
    * states.
@@ -265,6 +290,7 @@ public class SatelliteManagerWrapper {
         SATELLITE_DATAGRAM_TRANSFER_STATE_RECEIVE_SUCCESS,
         SATELLITE_DATAGRAM_TRANSFER_STATE_RECEIVE_NONE,
         SATELLITE_DATAGRAM_TRANSFER_STATE_RECEIVE_FAILED,
+        SATELLITE_DATAGRAM_TRANSFER_STATE_WAITING_TO_CONNECT,
         SATELLITE_DATAGRAM_TRANSFER_STATE_UNKNOWN
       })
   @Retention(RetentionPolicy.SOURCE)
