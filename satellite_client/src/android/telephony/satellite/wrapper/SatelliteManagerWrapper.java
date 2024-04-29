@@ -198,6 +198,10 @@ public class SatelliteManagerWrapper {
    */
   public static final int SATELLITE_MODEM_STATE_ENABLING_SATELLITE = 8;
   /**
+   * The satellite modem is being powered off.
+   */
+  public static final int SATELLITE_MODEM_STATE_DISABLING_SATELLITE = 9;
+  /**
    * Satellite modem state is unknown. This generic modem state should be used only when the modem
    * state cannot be mapped to other specific modem states.
    */
@@ -216,6 +220,7 @@ public class SatelliteManagerWrapper {
         SATELLITE_MODEM_STATE_NOT_CONNECTED,
         SATELLITE_MODEM_STATE_CONNECTED,
         SATELLITE_MODEM_STATE_ENABLING_SATELLITE,
+        SATELLITE_MODEM_STATE_DISABLING_SATELLITE,
         SATELLITE_MODEM_STATE_UNKNOWN
       })
   @Retention(RetentionPolicy.SOURCE)
