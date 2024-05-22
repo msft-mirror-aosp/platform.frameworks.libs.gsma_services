@@ -32,6 +32,7 @@ import android.telephony.NetworkRegistrationInfo;
 import android.telephony.ServiceState;
 import android.telephony.SubscriptionInfo;
 import android.telephony.SubscriptionManager;
+import android.telephony.TelephonyCallback;
 import android.telephony.TelephonyManager;
 import android.telephony.satellite.AntennaPosition;
 import android.telephony.satellite.EnableRequestAttributes;
@@ -99,6 +100,10 @@ public class SatelliteManagerWrapper {
           SatelliteSupportedStateCallbackWrapper, SatelliteSupportedStateCallback>
           sSatelliteSupportedStateCallbackWrapperMap = new ConcurrentHashMap<>();
 
+  private static final ConcurrentHashMap<
+          CarrierRoamingNtnModeListenerWrapper, TelephonyCallback.CarrierRoamingNtnModeListener>
+          sCarrierRoamingNtnModeListenerWrapperMap = new ConcurrentHashMap<>();
+
   private final SatelliteManager mSatelliteManager;
   private final SubscriptionManager mSubscriptionManager;
   private final TelephonyManager mTelephonyManager;
@@ -133,7 +138,16 @@ public class SatelliteManagerWrapper {
    * This type of datagram is used to keep the device in satellite connected state.
    */
   public static final int DATAGRAM_TYPE_KEEP_ALIVE = 3;
-
+  /**
+   * Datagram type indicating that the datagram to be sent or received is of type SOS message and
+   * is the last message to emergency service provider indicating still needs help.
+   */
+  public static final int DATAGRAM_TYPE_LAST_SOS_MESSAGE_STILL_NEED_HELP = 4;
+  /**
+   * Datagram type indicating that the datagram to be sent or received is of type SOS message and
+   * is the last message to emergency service provider indicating no more help is needed.
+   */
+  public static final int DATAGRAM_TYPE_LAST_SOS_MESSAGE_NO_HELP_NEEDED = 5;
   /** @hide */
   @IntDef(
       prefix = "DATAGRAM_TYPE_",
@@ -141,7 +155,9 @@ public class SatelliteManagerWrapper {
               DATAGRAM_TYPE_UNKNOWN,
               DATAGRAM_TYPE_SOS_MESSAGE,
               DATAGRAM_TYPE_LOCATION_SHARING,
-              DATAGRAM_TYPE_KEEP_ALIVE
+              DATAGRAM_TYPE_KEEP_ALIVE,
+              DATAGRAM_TYPE_LAST_SOS_MESSAGE_STILL_NEED_HELP,
+              DATAGRAM_TYPE_LAST_SOS_MESSAGE_NO_HELP_NEEDED
       })
   @Retention(RetentionPolicy.SOURCE)
   public @interface DatagramType {}
@@ -798,6 +814,34 @@ public class SatelliteManagerWrapper {
     SatelliteDatagramCallback internalCallback = sSatelliteDatagramCallbackWrapperMap.get(callback);
     if (internalCallback != null) {
       mSatelliteManager.unregisterForIncomingDatagram(internalCallback);
+    }
+  }
+
+  /** Register for carrier roaming non-terrestrial network mode changes. */
+  public void registerForCarrierRoamingNtnModeChanged(int subId,
+          @NonNull @CallbackExecutor Executor executor,
+          @NonNull CarrierRoamingNtnModeListenerWrapper listener) {
+    TelephonyCallback.CarrierRoamingNtnModeListener internalListener = new TelephonyCallback
+            .CarrierRoamingNtnModeListener() {
+      @Override
+      public void onCarrierRoamingNtnModeChanged(boolean active) {
+        listener.onCarrierRoamingNtnModeChanged(active);
+      }
+    };
+    sCarrierRoamingNtnModeListenerWrapperMap.put(listener, internalListener);
+
+    TelephonyManager tm = mTelephonyManager.createForSubscriptionId(subId);
+    tm.registerTelephonyCallback(executor, (TelephonyCallback) internalListener);
+  }
+
+  /** Unregister for carrier roaming non-terrestrial network mode changes. */
+  public void unregisterForCarrierRoamingNtnModeChanged(int subId,
+          @NonNull CarrierRoamingNtnModeListenerWrapper listener) {
+    TelephonyCallback.CarrierRoamingNtnModeListener internalListener =
+            sCarrierRoamingNtnModeListenerWrapperMap.get(listener);
+    if (internalListener != null) {
+      TelephonyManager tm = mTelephonyManager.createForSubscriptionId(subId);
+      tm.unregisterTelephonyCallback((TelephonyCallback) internalListener);
     }
   }
 
