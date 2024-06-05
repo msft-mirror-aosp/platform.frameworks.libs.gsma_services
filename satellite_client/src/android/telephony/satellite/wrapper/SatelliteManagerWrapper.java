@@ -16,32 +16,54 @@
 
 package android.telephony.satellite.wrapper;
 
+import static android.telephony.AccessNetworkConstants.TRANSPORT_TYPE_WWAN;
+import static android.telephony.NetworkRegistrationInfo.DOMAIN_PS;
 import static android.telephony.satellite.SatelliteManager.SatelliteException;
 
 import android.annotation.CallbackExecutor;
+import android.annotation.FlaggedApi;
 import android.annotation.IntDef;
 import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.content.Context;
 import android.os.CancellationSignal;
 import android.os.OutcomeReceiver;
+import android.telephony.NetworkRegistrationInfo;
+import android.telephony.ServiceState;
+import android.telephony.SubscriptionInfo;
+import android.telephony.SubscriptionManager;
+import android.telephony.TelephonyCallback;
+import android.telephony.TelephonyManager;
 import android.telephony.satellite.AntennaPosition;
+import android.telephony.satellite.EnableRequestAttributes;
+import android.telephony.satellite.NtnSignalStrength;
+import android.telephony.satellite.NtnSignalStrengthCallback;
 import android.telephony.satellite.PointingInfo;
 import android.telephony.satellite.SatelliteCapabilities;
+import android.telephony.satellite.SatelliteCapabilitiesCallback;
 import android.telephony.satellite.SatelliteDatagram;
 import android.telephony.satellite.SatelliteDatagramCallback;
 import android.telephony.satellite.SatelliteManager;
+import android.telephony.satellite.SatelliteModemStateCallback;
 import android.telephony.satellite.SatelliteProvisionStateCallback;
-import android.telephony.satellite.SatelliteStateCallback;
+import android.telephony.satellite.SatelliteSupportedStateCallback;
 import android.telephony.satellite.SatelliteTransmissionUpdateCallback;
+
+import com.android.internal.telephony.flags.Flags;
+import com.android.telephony.Rlog;
+
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 /**
  * Wrapper for satellite operations such as provisioning, pointing, messaging, location sharing,
@@ -51,24 +73,45 @@ public class SatelliteManagerWrapper {
   private static final String TAG = "SatelliteManagerWrapper";
 
   private static final ConcurrentHashMap<
+      SatelliteDatagramCallbackWrapper, SatelliteDatagramCallback>
+      sSatelliteDatagramCallbackWrapperMap = new ConcurrentHashMap<>();
+
+  private static final ConcurrentHashMap<
           SatelliteProvisionStateCallbackWrapper, SatelliteProvisionStateCallback>
       sSatelliteProvisionStateCallbackWrapperMap = new ConcurrentHashMap<>();
 
-  private static final ConcurrentHashMap<SatelliteStateCallbackWrapper, SatelliteStateCallback>
-      sSatelliteStateCallbackWrapperMap = new ConcurrentHashMap<>();
+  private static final ConcurrentHashMap<SatelliteModemStateCallbackWrapper,
+          SatelliteModemStateCallback> sSatelliteModemStateCallbackWrapperMap =
+          new ConcurrentHashMap<>();
 
   private static final ConcurrentHashMap<
           SatelliteTransmissionUpdateCallbackWrapper, SatelliteTransmissionUpdateCallback>
       sSatelliteTransmissionUpdateCallbackWrapperMap = new ConcurrentHashMap<>();
 
   private static final ConcurrentHashMap<
-          SatelliteDatagramCallbackWrapper, SatelliteDatagramCallback>
-      sSatelliteDatagramCallbackWrapperMap = new ConcurrentHashMap<>();
+          NtnSignalStrengthCallbackWrapper, NtnSignalStrengthCallback>
+      sNtnSignalStrengthCallbackWrapperMap = new ConcurrentHashMap<>();
+
+  private static final ConcurrentHashMap<
+          SatelliteCapabilitiesCallbackWrapper, SatelliteCapabilitiesCallback>
+          sSatelliteCapabilitiesCallbackWrapperMap = new ConcurrentHashMap<>();
+
+  private static final ConcurrentHashMap<
+          SatelliteSupportedStateCallbackWrapper, SatelliteSupportedStateCallback>
+          sSatelliteSupportedStateCallbackWrapperMap = new ConcurrentHashMap<>();
+
+  private static final ConcurrentHashMap<
+          CarrierRoamingNtnModeListenerWrapper, TelephonyCallback.CarrierRoamingNtnModeListener>
+          sCarrierRoamingNtnModeListenerWrapperMap = new ConcurrentHashMap<>();
 
   private final SatelliteManager mSatelliteManager;
+  private final SubscriptionManager mSubscriptionManager;
+  private final TelephonyManager mTelephonyManager;
 
   SatelliteManagerWrapper(Context context) {
-    mSatelliteManager = (SatelliteManager) context.getSystemService("satellite");
+    mSatelliteManager = context.getSystemService(SatelliteManager.class);
+    mSubscriptionManager = context.getSystemService(SubscriptionManager.class);
+    mTelephonyManager = context.getSystemService(TelephonyManager.class);
   }
 
   /**
@@ -91,11 +134,31 @@ public class SatelliteManagerWrapper {
    * Datagram type indicating that the datagram to be sent or received is of type location sharing.
    */
   public static final int DATAGRAM_TYPE_LOCATION_SHARING = 2;
-
+  /**
+   * This type of datagram is used to keep the device in satellite connected state.
+   */
+  public static final int DATAGRAM_TYPE_KEEP_ALIVE = 3;
+  /**
+   * Datagram type indicating that the datagram to be sent or received is of type SOS message and
+   * is the last message to emergency service provider indicating still needs help.
+   */
+  public static final int DATAGRAM_TYPE_LAST_SOS_MESSAGE_STILL_NEED_HELP = 4;
+  /**
+   * Datagram type indicating that the datagram to be sent or received is of type SOS message and
+   * is the last message to emergency service provider indicating no more help is needed.
+   */
+  public static final int DATAGRAM_TYPE_LAST_SOS_MESSAGE_NO_HELP_NEEDED = 5;
   /** @hide */
   @IntDef(
       prefix = "DATAGRAM_TYPE_",
-      value = {DATAGRAM_TYPE_UNKNOWN, DATAGRAM_TYPE_SOS_MESSAGE, DATAGRAM_TYPE_LOCATION_SHARING})
+      value = {
+              DATAGRAM_TYPE_UNKNOWN,
+              DATAGRAM_TYPE_SOS_MESSAGE,
+              DATAGRAM_TYPE_LOCATION_SHARING,
+              DATAGRAM_TYPE_KEEP_ALIVE,
+              DATAGRAM_TYPE_LAST_SOS_MESSAGE_STILL_NEED_HELP,
+              DATAGRAM_TYPE_LAST_SOS_MESSAGE_NO_HELP_NEEDED
+      })
   @Retention(RetentionPolicy.SOURCE)
   public @interface DatagramType {}
 
@@ -139,6 +202,22 @@ public class SatelliteManagerWrapper {
   /** Satellite modem is unavailable. */
   public static final int SATELLITE_MODEM_STATE_UNAVAILABLE = 5;
   /**
+   * The satellite modem is powered on but the device is not registered to a satellite cell.
+   */
+  public static final int SATELLITE_MODEM_STATE_NOT_CONNECTED = 6;
+  /**
+   * The satellite modem is powered on and the device is registered to a satellite cell.
+   */
+  public static final int SATELLITE_MODEM_STATE_CONNECTED = 7;
+  /**
+   * The satellite modem is being powered on.
+   */
+  public static final int SATELLITE_MODEM_STATE_ENABLING_SATELLITE = 8;
+  /**
+   * The satellite modem is being powered off.
+   */
+  public static final int SATELLITE_MODEM_STATE_DISABLING_SATELLITE = 9;
+  /**
    * Satellite modem state is unknown. This generic modem state should be used only when the modem
    * state cannot be mapped to other specific modem states.
    */
@@ -154,6 +233,10 @@ public class SatelliteManagerWrapper {
         SATELLITE_MODEM_STATE_DATAGRAM_RETRYING,
         SATELLITE_MODEM_STATE_OFF,
         SATELLITE_MODEM_STATE_UNAVAILABLE,
+        SATELLITE_MODEM_STATE_NOT_CONNECTED,
+        SATELLITE_MODEM_STATE_CONNECTED,
+        SATELLITE_MODEM_STATE_ENABLING_SATELLITE,
+        SATELLITE_MODEM_STATE_DISABLING_SATELLITE,
         SATELLITE_MODEM_STATE_UNKNOWN
       })
   @Retention(RetentionPolicy.SOURCE)
@@ -200,6 +283,16 @@ public class SatelliteManagerWrapper {
    */
   public static final int SATELLITE_DATAGRAM_TRANSFER_STATE_RECEIVE_FAILED = 7;
   /**
+   * A transition state indicating that Telephony is waiting for satellite modem to connect to a
+   * satellite network before sending a datagram or polling for datagrams. If the satellite modem
+   * successfully connects to a satellite network, either
+   * {@link #SATELLITE_DATAGRAM_TRANSFER_STATE_SENDING} or
+   * {@link #SATELLITE_DATAGRAM_TRANSFER_STATE_RECEIVING} will be sent. Otherwise,
+   * either {@link #SATELLITE_DATAGRAM_TRANSFER_STATE_SEND_FAILED} or
+   * {@link #SATELLITE_DATAGRAM_TRANSFER_STATE_RECEIVE_FAILED} will be sent.
+   */
+  public static final int SATELLITE_DATAGRAM_TRANSFER_STATE_WAITING_TO_CONNECT = 8;
+  /**
    * The datagram transfer state is unknown. This generic datagram transfer state should be used
    * only when the datagram transfer state cannot be mapped to other specific datagram transfer
    * states.
@@ -218,110 +311,114 @@ public class SatelliteManagerWrapper {
         SATELLITE_DATAGRAM_TRANSFER_STATE_RECEIVE_SUCCESS,
         SATELLITE_DATAGRAM_TRANSFER_STATE_RECEIVE_NONE,
         SATELLITE_DATAGRAM_TRANSFER_STATE_RECEIVE_FAILED,
+        SATELLITE_DATAGRAM_TRANSFER_STATE_WAITING_TO_CONNECT,
         SATELLITE_DATAGRAM_TRANSFER_STATE_UNKNOWN
       })
   @Retention(RetentionPolicy.SOURCE)
   public @interface SatelliteDatagramTransferState {}
 
   /** The request was successfully processed. */
-  public static final int SATELLITE_ERROR_NONE = 0;
+  public static final int SATELLITE_RESULT_SUCCESS = 0;
   /** A generic error which should be used only when other specific errors cannot be used. */
-  public static final int SATELLITE_ERROR = 1;
+  public static final int SATELLITE_RESULT_ERROR = 1;
   /** Error received from the satellite server. */
-  public static final int SATELLITE_SERVER_ERROR = 2;
+  public static final int SATELLITE_RESULT_SERVER_ERROR = 2;
   /**
    * Error received from the vendor service. This generic error code should be used only when the
    * error cannot be mapped to other specific service error codes.
    */
-  public static final int SATELLITE_SERVICE_ERROR = 3;
+  public static final int SATELLITE_RESULT_SERVICE_ERROR = 3;
   /**
    * Error received from satellite modem. This generic error code should be used only when the error
    * cannot be mapped to other specific modem error codes.
    */
-  public static final int SATELLITE_MODEM_ERROR = 4;
+  public static final int SATELLITE_RESULT_MODEM_ERROR = 4;
   /**
    * Error received from the satellite network. This generic error code should be used only when the
    * error cannot be mapped to other specific network error codes.
    */
-  public static final int SATELLITE_NETWORK_ERROR = 5;
+  public static final int SATELLITE_RESULT_NETWORK_ERROR = 5;
   /** Telephony is not in a valid state to receive requests from clients. */
-  public static final int SATELLITE_INVALID_TELEPHONY_STATE = 6;
+  public static final int SATELLITE_RESULT_INVALID_TELEPHONY_STATE = 6;
   /** Satellite modem is not in a valid state to receive requests from clients. */
-  public static final int SATELLITE_INVALID_MODEM_STATE = 7;
+  public static final int SATELLITE_RESULT_INVALID_MODEM_STATE = 7;
   /**
    * Either vendor service, or modem, or Telephony framework has received a request with invalid
    * arguments from its clients.
    */
-  public static final int SATELLITE_INVALID_ARGUMENTS = 8;
+  public static final int SATELLITE_RESULT_INVALID_ARGUMENTS = 8;
   /**
    * Telephony framework failed to send a request or receive a response from the vendor service or
    * satellite modem due to internal error.
    */
-  public static final int SATELLITE_REQUEST_FAILED = 9;
+  public static final int SATELLITE_RESULT_REQUEST_FAILED = 9;
   /** Radio did not start or is resetting. */
-  public static final int SATELLITE_RADIO_NOT_AVAILABLE = 10;
+  public static final int SATELLITE_RESULT_RADIO_NOT_AVAILABLE = 10;
   /** The request is not supported by either the satellite modem or the network. */
-  public static final int SATELLITE_REQUEST_NOT_SUPPORTED = 11;
+  public static final int SATELLITE_RESULT_REQUEST_NOT_SUPPORTED = 11;
   /** Satellite modem or network has no resources available to handle requests from clients. */
-  public static final int SATELLITE_NO_RESOURCES = 12;
+  public static final int SATELLITE_RESULT_NO_RESOURCES = 12;
   /** Satellite service is not provisioned yet. */
-  public static final int SATELLITE_SERVICE_NOT_PROVISIONED = 13;
+  public static final int SATELLITE_RESULT_SERVICE_NOT_PROVISIONED = 13;
   /** Satellite service provision is already in progress. */
-  public static final int SATELLITE_SERVICE_PROVISION_IN_PROGRESS = 14;
+  public static final int SATELLITE_RESULT_SERVICE_PROVISION_IN_PROGRESS = 14;
   /**
    * The ongoing request was aborted by either the satellite modem or the network. This error is
    * also returned when framework decides to abort current send request as one of the previous send
    * request failed.
    */
-  public static final int SATELLITE_REQUEST_ABORTED = 15;
+  public static final int SATELLITE_RESULT_REQUEST_ABORTED = 15;
   /** The device/subscriber is barred from accessing the satellite service. */
-  public static final int SATELLITE_ACCESS_BARRED = 16;
+  public static final int SATELLITE_RESULT_ACCESS_BARRED = 16;
   /**
    * Satellite modem timeout to receive ACK or response from the satellite network after sending a
    * request to the network.
    */
-  public static final int SATELLITE_NETWORK_TIMEOUT = 17;
+  public static final int SATELLITE_RESULT_NETWORK_TIMEOUT = 17;
   /** Satellite network is not reachable from the modem. */
-  public static final int SATELLITE_NOT_REACHABLE = 18;
+  public static final int SATELLITE_RESULT_NOT_REACHABLE = 18;
   /** The device/subscriber is not authorized to register with the satellite service provider. */
-  public static final int SATELLITE_NOT_AUTHORIZED = 19;
+  public static final int SATELLITE_RESULT_NOT_AUTHORIZED = 19;
   /** The device does not support satellite. */
-  public static final int SATELLITE_NOT_SUPPORTED = 20;
+  public static final int SATELLITE_RESULT_NOT_SUPPORTED = 20;
   /** The current request is already in-progress. */
-  public static final int SATELLITE_REQUEST_IN_PROGRESS = 21;
+  public static final int SATELLITE_RESULT_REQUEST_IN_PROGRESS = 21;
   /** Satellite modem is currently busy due to which current request cannot be processed. */
-  public static final int SATELLITE_MODEM_BUSY = 22;
+  public static final int SATELLITE_RESULT_MODEM_BUSY = 22;
+  /** Telephony process is not currently available or satellite is not supported. */
+  public static final int SATELLITE_RESULT_ILLEGAL_STATE = 23;
 
   /** @hide */
   @IntDef(
-      prefix = {"SATELLITE_"},
+      prefix = {"SATELLITE_RESULT_"},
       value = {
-        SATELLITE_ERROR_NONE,
-        SATELLITE_ERROR,
-        SATELLITE_SERVER_ERROR,
-        SATELLITE_SERVICE_ERROR,
-        SATELLITE_MODEM_ERROR,
-        SATELLITE_NETWORK_ERROR,
-        SATELLITE_INVALID_TELEPHONY_STATE,
-        SATELLITE_INVALID_MODEM_STATE,
-        SATELLITE_INVALID_ARGUMENTS,
-        SATELLITE_REQUEST_FAILED,
-        SATELLITE_RADIO_NOT_AVAILABLE,
-        SATELLITE_REQUEST_NOT_SUPPORTED,
-        SATELLITE_NO_RESOURCES,
-        SATELLITE_SERVICE_NOT_PROVISIONED,
-        SATELLITE_SERVICE_PROVISION_IN_PROGRESS,
-        SATELLITE_REQUEST_ABORTED,
-        SATELLITE_ACCESS_BARRED,
-        SATELLITE_NETWORK_TIMEOUT,
-        SATELLITE_NOT_REACHABLE,
-        SATELLITE_NOT_AUTHORIZED,
-        SATELLITE_NOT_SUPPORTED,
-        SATELLITE_REQUEST_IN_PROGRESS,
-        SATELLITE_MODEM_BUSY
+        SATELLITE_RESULT_SUCCESS,
+        SATELLITE_RESULT_ERROR,
+        SATELLITE_RESULT_SERVER_ERROR,
+        SATELLITE_RESULT_SERVICE_ERROR,
+        SATELLITE_RESULT_MODEM_ERROR,
+        SATELLITE_RESULT_NETWORK_ERROR,
+        SATELLITE_RESULT_INVALID_TELEPHONY_STATE,
+        SATELLITE_RESULT_INVALID_MODEM_STATE,
+        SATELLITE_RESULT_INVALID_ARGUMENTS,
+        SATELLITE_RESULT_REQUEST_FAILED,
+        SATELLITE_RESULT_RADIO_NOT_AVAILABLE,
+        SATELLITE_RESULT_REQUEST_NOT_SUPPORTED,
+        SATELLITE_RESULT_NO_RESOURCES,
+        SATELLITE_RESULT_SERVICE_NOT_PROVISIONED,
+        SATELLITE_RESULT_SERVICE_PROVISION_IN_PROGRESS,
+        SATELLITE_RESULT_REQUEST_ABORTED,
+        SATELLITE_RESULT_ACCESS_BARRED,
+        SATELLITE_RESULT_NETWORK_TIMEOUT,
+        SATELLITE_RESULT_NOT_REACHABLE,
+        SATELLITE_RESULT_NOT_AUTHORIZED,
+        SATELLITE_RESULT_NOT_SUPPORTED,
+        SATELLITE_RESULT_REQUEST_IN_PROGRESS,
+        SATELLITE_RESULT_MODEM_BUSY,
+        SATELLITE_RESULT_ILLEGAL_STATE
       })
   @Retention(RetentionPolicy.SOURCE)
-  public @interface SatelliteError {}
+  public @interface SatelliteResult {}
 
   /** Suggested device hold position is unknown. */
   public static final int DEVICE_HOLD_POSITION_UNKNOWN = 0;
@@ -344,7 +441,35 @@ public class SatelliteManagerWrapper {
   @Retention(RetentionPolicy.SOURCE)
   public @interface DeviceHoldPosition {}
 
-  /** Exception from the satellite service containing the {@link SatelliteError} error code. */
+  /**
+   * Satellite communication restricted by user.
+   * @hide
+   */
+  public static final int SATELLITE_COMMUNICATION_RESTRICTION_REASON_USER = 0;
+
+  /**
+   * Satellite communication restricted by geolocation. This can be
+   * triggered based upon geofence input provided by carrier to enable or disable satellite.
+   */
+  public static final int SATELLITE_COMMUNICATION_RESTRICTION_REASON_GEOLOCATION = 1;
+
+  /**
+   * Satellite communication restricted by entitlement server. This can be triggered based on
+   * the EntitlementStatus value received from the entitlement server to enable or disable
+   * satellite.
+   */
+  public static final int SATELLITE_COMMUNICATION_RESTRICTION_REASON_ENTITLEMENT = 2;
+
+  /** @hide */
+  @IntDef(prefix = "SATELLITE_COMMUNICATION_RESTRICTION_REASON_", value = {
+          SATELLITE_COMMUNICATION_RESTRICTION_REASON_USER,
+          SATELLITE_COMMUNICATION_RESTRICTION_REASON_GEOLOCATION,
+          SATELLITE_COMMUNICATION_RESTRICTION_REASON_ENTITLEMENT
+  })
+  @Retention(RetentionPolicy.SOURCE)
+  public @interface SatelliteCommunicationRestrictionReason {}
+
+  /** Exception from the satellite service containing the {@link SatelliteResult} error code. */
   public static class SatelliteExceptionWrapper extends Exception {
     private final int mErrorCode;
 
@@ -364,17 +489,20 @@ public class SatelliteManagerWrapper {
    * enabled, this may also disable the cellular modem, and if the satellite modem is disabled, this
    * may also re-enable the cellular modem.
    */
-  public void requestSatelliteEnabled(
+  public void requestEnabled(
       boolean enableSatellite,
       boolean enableDemoMode,
+      boolean isEmergency,
       @NonNull @CallbackExecutor Executor executor,
-      @SatelliteError @NonNull Consumer<Integer> resultListener) {
-    mSatelliteManager.requestSatelliteEnabled(
-        enableSatellite, enableDemoMode, executor, resultListener);
+      @SatelliteResult @NonNull Consumer<Integer> resultListener) {
+    mSatelliteManager.requestEnabled(new EnableRequestAttributes.Builder(enableSatellite)
+            .setDemoMode(enableDemoMode)
+            .setEmergencyMode(isEmergency)
+            .build(), executor, resultListener);
   }
 
   /** Request to get whether the satellite modem is enabled. */
-  public void requestIsSatelliteEnabled(
+  public void requestIsEnabled(
       @NonNull @CallbackExecutor Executor executor,
       @NonNull OutcomeReceiver<Boolean, SatelliteExceptionWrapper> callback) {
     OutcomeReceiver internalCallback =
@@ -389,7 +517,7 @@ public class SatelliteManagerWrapper {
             callback.onError(new SatelliteExceptionWrapper(exception.getErrorCode()));
           }
         };
-    mSatelliteManager.requestIsSatelliteEnabled(executor, internalCallback);
+    mSatelliteManager.requestIsEnabled(executor, internalCallback);
   }
 
   /** Request to get whether the satellite service demo mode is enabled. */
@@ -411,8 +539,27 @@ public class SatelliteManagerWrapper {
     mSatelliteManager.requestIsDemoModeEnabled(executor, internalCallback);
   }
 
+  /** Request to get whether the satellite service is enabled for emergency mode */
+  public void requestIsEmergencyModeEnabled(
+          @NonNull @CallbackExecutor Executor executor,
+          @NonNull OutcomeReceiver<Boolean, SatelliteExceptionWrapper> callback) {
+    OutcomeReceiver internalCallback =
+        new OutcomeReceiver<Boolean, SatelliteException>() {
+          @Override
+          public void onResult(Boolean result) {
+            callback.onResult(result);
+          }
+
+          @Override
+          public void onError(SatelliteException exception) {
+            callback.onError(new SatelliteExceptionWrapper(exception.getErrorCode()));
+          }
+        };
+    mSatelliteManager.requestIsEmergencyModeEnabled(executor, internalCallback);
+  }
+
   /** Request to get whether the satellite service is supported on the device. */
-  public void requestIsSatelliteSupported(
+  public void requestIsSupported(
       @NonNull @CallbackExecutor Executor executor,
       @NonNull OutcomeReceiver<Boolean, SatelliteExceptionWrapper> callback) {
     OutcomeReceiver internalCallback =
@@ -427,11 +574,11 @@ public class SatelliteManagerWrapper {
             callback.onError(new SatelliteExceptionWrapper(exception.getErrorCode()));
           }
         };
-    mSatelliteManager.requestIsSatelliteSupported(executor, internalCallback);
+    mSatelliteManager.requestIsSupported(executor, internalCallback);
   }
 
   /** Request to get the {@link SatelliteCapabilities} of the satellite service. */
-  public void requestSatelliteCapabilities(
+  public void requestCapabilities(
       @NonNull @CallbackExecutor Executor executor,
       @NonNull OutcomeReceiver<SatelliteCapabilitiesWrapper, SatelliteExceptionWrapper> callback) {
     OutcomeReceiver internalCallback =
@@ -451,20 +598,20 @@ public class SatelliteManagerWrapper {
             callback.onError(new SatelliteExceptionWrapper(exception.getErrorCode()));
           }
         };
-    mSatelliteManager.requestSatelliteCapabilities(executor, internalCallback);
+    mSatelliteManager.requestCapabilities(executor, internalCallback);
   }
 
   /**
    * Start receiving satellite transmission updates. This can be called by the pointing UI when the
    * user starts pointing to the satellite. Modem should continue to report the pointing input as
    * the device or satellite moves. Satellite transmission updates are started only on {@link
-   * #SATELLITE_ERROR_NONE}. All other results indicate that this operation failed. Once satellite
-   * transmission updates begin, position and datagram transfer state updates will be sent through
-   * {@link SatelliteTransmissionUpdateCallback}.
+   * #SATELLITE_RESULT_SUCCESS}. All other results indicate that this operation failed.
+   * Once satellite transmission updates begin, position and datagram transfer state updates
+   * will be sent through {@link SatelliteTransmissionUpdateCallback}.
    */
-  public void startSatelliteTransmissionUpdates(
+  public void startTransmissionUpdates(
       @NonNull @CallbackExecutor Executor executor,
-      @SatelliteError @NonNull Consumer<Integer> resultListener,
+      @SatelliteResult @NonNull Consumer<Integer> resultListener,
       @NonNull SatelliteTransmissionUpdateCallbackWrapper callback) {
 
     SatelliteTransmissionUpdateCallback internalCallback =
@@ -474,15 +621,24 @@ public class SatelliteManagerWrapper {
           public void onSendDatagramStateChanged(
               @SatelliteDatagramTransferState int state,
               int sendPendingCount,
-              @SatelliteError int errorCode) {
+              @SatelliteResult int errorCode) {
             callback.onSendDatagramStateChanged(state, sendPendingCount, errorCode);
+          }
+
+          @Override
+          public void onSendDatagramStateChanged(
+                  @SatelliteManager.DatagramType int datagramType,
+                  @SatelliteDatagramTransferState int state,
+                  int sendPendingCount,
+                  @SatelliteResult int errorCode) {
+            callback.onSendDatagramStateChanged(datagramType, state, sendPendingCount, errorCode);
           }
 
           @Override
           public void onReceiveDatagramStateChanged(
               @SatelliteDatagramTransferState int state,
               int receivePendingCount,
-              @SatelliteError int errorCode) {
+              @SatelliteResult int errorCode) {
             callback.onReceiveDatagramStateChanged(state, receivePendingCount, errorCode);
           }
 
@@ -496,23 +652,23 @@ public class SatelliteManagerWrapper {
         };
     sSatelliteTransmissionUpdateCallbackWrapperMap.put(callback, internalCallback);
 
-    mSatelliteManager.startSatelliteTransmissionUpdates(executor, resultListener, internalCallback);
+    mSatelliteManager.startTransmissionUpdates(executor, resultListener, internalCallback);
   }
 
   /**
    * Stop receiving satellite transmission updates. This can be called by the pointing UI when the
    * user stops pointing to the satellite. Satellite transmission updates are stopped and the
-   * callback is unregistered only on {@link #SATELLITE_ERROR_NONE}. All other results that this
+   * callback is unregistered only on {@link #SATELLITE_RESULT_SUCCESS}. All other results that this
    * operation failed.
    */
-  public void stopSatelliteTransmissionUpdates(
+  public void stopTransmissionUpdates(
       @NonNull SatelliteTransmissionUpdateCallbackWrapper callback,
       @NonNull @CallbackExecutor Executor executor,
-      @SatelliteError @NonNull Consumer<Integer> resultListener) {
+      @SatelliteResult @NonNull Consumer<Integer> resultListener) {
     SatelliteTransmissionUpdateCallback internalCallback =
         sSatelliteTransmissionUpdateCallbackWrapperMap.get(callback);
     if (internalCallback != null) {
-      mSatelliteManager.stopSatelliteTransmissionUpdates(
+      mSatelliteManager.stopTransmissionUpdates(
           internalCallback, executor, resultListener);
     }
   }
@@ -521,13 +677,13 @@ public class SatelliteManagerWrapper {
    * Provision the device with a satellite provider. This is needed if the provider allows dynamic
    * registration.
    */
-  public void provisionSatelliteService(
+  public void provisionService(
       @NonNull String token,
       @NonNull byte[] provisionData,
       @Nullable CancellationSignal cancellationSignal,
       @NonNull @CallbackExecutor Executor executor,
-      @SatelliteError @NonNull Consumer<Integer> resultListener) {
-    mSatelliteManager.provisionSatelliteService(
+      @SatelliteResult @NonNull Consumer<Integer> resultListener) {
+    mSatelliteManager.provisionService(
         token, provisionData, cancellationSignal, executor, resultListener);
   }
 
@@ -537,16 +693,16 @@ public class SatelliteManagerWrapper {
    * SatelliteProvisionStateCallback#onSatelliteProvisionStateChanged(boolean)} should report as
    * deprovisioned.
    */
-  public void deprovisionSatelliteService(
+  public void deprovisionService(
       @NonNull String token,
       @NonNull @CallbackExecutor Executor executor,
-      @SatelliteError @NonNull Consumer<Integer> resultListener) {
-    mSatelliteManager.deprovisionSatelliteService(token, executor, resultListener);
+      @SatelliteResult @NonNull Consumer<Integer> resultListener) {
+    mSatelliteManager.deprovisionService(token, executor, resultListener);
   }
 
   /** Registers for the satellite provision state changed. */
-  @SatelliteError
-  public int registerForSatelliteProvisionStateChanged(
+  @SatelliteResult
+  public int registerForProvisionStateChanged(
       @NonNull @CallbackExecutor Executor executor,
       @NonNull SatelliteProvisionStateCallbackWrapper callback) {
     SatelliteProvisionStateCallback internalCallback =
@@ -558,7 +714,7 @@ public class SatelliteManagerWrapper {
         };
     sSatelliteProvisionStateCallbackWrapperMap.put(callback, internalCallback);
     int result =
-        mSatelliteManager.registerForSatelliteProvisionStateChanged(executor, internalCallback);
+        mSatelliteManager.registerForProvisionStateChanged(executor, internalCallback);
     return result;
   }
 
@@ -566,17 +722,17 @@ public class SatelliteManagerWrapper {
    * Unregisters for the satellite provision state changed. If callback was not registered before,
    * the request will be ignored.
    */
-  public void unregisterForSatelliteProvisionStateChanged(
+  public void unregisterForProvisionStateChanged(
       @NonNull SatelliteProvisionStateCallbackWrapper callback) {
     SatelliteProvisionStateCallback internalCallback =
         sSatelliteProvisionStateCallbackWrapperMap.get(callback);
     if (internalCallback != null) {
-      mSatelliteManager.unregisterForSatelliteProvisionStateChanged(internalCallback);
+      mSatelliteManager.unregisterForProvisionStateChanged(internalCallback);
     }
   }
 
   /** Request to get whether this device is provisioned with a satellite provider. */
-  public void requestIsSatelliteProvisioned(
+  public void requestIsProvisioned(
       @NonNull @CallbackExecutor Executor executor,
       @NonNull OutcomeReceiver<Boolean, SatelliteExceptionWrapper> callback) {
     OutcomeReceiver internalCallback =
@@ -591,24 +747,24 @@ public class SatelliteManagerWrapper {
             callback.onError(new SatelliteExceptionWrapper(exception.getErrorCode()));
           }
         };
-    mSatelliteManager.requestIsSatelliteProvisioned(executor, internalCallback);
+    mSatelliteManager.requestIsProvisioned(executor, internalCallback);
   }
 
   /** Registers for modem state changed from satellite modem. */
-  @SatelliteError
-  public int registerForSatelliteModemStateChanged(
+  @SatelliteResult
+  public int registerForModemStateChanged(
       @NonNull @CallbackExecutor Executor executor,
-      @NonNull SatelliteStateCallbackWrapper callback) {
-    SatelliteStateCallback internalCallback =
-        new SatelliteStateCallback() {
+      @NonNull SatelliteModemStateCallbackWrapper callback) {
+    SatelliteModemStateCallback internalCallback =
+        new SatelliteModemStateCallback() {
           public void onSatelliteModemStateChanged(@SatelliteModemState int state) {
             callback.onSatelliteModemStateChanged(state);
           }
         };
-    sSatelliteStateCallbackWrapperMap.put(callback, internalCallback);
+    sSatelliteModemStateCallbackWrapperMap.put(callback, internalCallback);
 
     int result =
-        mSatelliteManager.registerForSatelliteModemStateChanged(executor, internalCallback);
+        mSatelliteManager.registerForModemStateChanged(executor, internalCallback);
     return result;
   }
 
@@ -616,17 +772,18 @@ public class SatelliteManagerWrapper {
    * Unregisters for modem state changed from satellite modem. If callback was not registered
    * before, the request will be ignored.
    */
-  public void unregisterForSatelliteModemStateChanged(
-      @NonNull SatelliteStateCallbackWrapper callback) {
-    SatelliteStateCallback internalCallback = sSatelliteStateCallbackWrapperMap.get(callback);
+  public void unregisterForModemStateChanged(
+      @NonNull SatelliteModemStateCallbackWrapper callback) {
+    SatelliteModemStateCallback internalCallback = sSatelliteModemStateCallbackWrapperMap.get(
+            callback);
     if (internalCallback != null) {
-      mSatelliteManager.unregisterForSatelliteModemStateChanged(internalCallback);
+      mSatelliteManager.unregisterForModemStateChanged(internalCallback);
     }
   }
 
   /** Register to receive incoming datagrams over satellite. */
-  @SatelliteError
-  public int registerForSatelliteDatagram(
+  @SatelliteResult
+  public int registerForIncomingDatagram(
       @NonNull @CallbackExecutor Executor executor,
       @NonNull SatelliteDatagramCallbackWrapper callback) {
     SatelliteDatagramCallback internalCallback =
@@ -645,7 +802,7 @@ public class SatelliteManagerWrapper {
           }
         };
     sSatelliteDatagramCallbackWrapperMap.put(callback, internalCallback);
-    int result = mSatelliteManager.registerForSatelliteDatagram(executor, internalCallback);
+    int result = mSatelliteManager.registerForIncomingDatagram(executor, internalCallback);
     return result;
   }
 
@@ -653,18 +810,46 @@ public class SatelliteManagerWrapper {
    * Unregister to stop receiving incoming datagrams over satellite. If callback was not registered
    * before, the request will be ignored.
    */
-  public void unregisterForSatelliteDatagram(@NonNull SatelliteDatagramCallbackWrapper callback) {
+  public void unregisterForIncomingDatagram(@NonNull SatelliteDatagramCallbackWrapper callback) {
     SatelliteDatagramCallback internalCallback = sSatelliteDatagramCallbackWrapperMap.get(callback);
     if (internalCallback != null) {
-      mSatelliteManager.unregisterForSatelliteDatagram(internalCallback);
+      mSatelliteManager.unregisterForIncomingDatagram(internalCallback);
+    }
+  }
+
+  /** Register for carrier roaming non-terrestrial network mode changes. */
+  public void registerForCarrierRoamingNtnModeChanged(int subId,
+          @NonNull @CallbackExecutor Executor executor,
+          @NonNull CarrierRoamingNtnModeListenerWrapper listener) {
+    TelephonyCallback.CarrierRoamingNtnModeListener internalListener = new TelephonyCallback
+            .CarrierRoamingNtnModeListener() {
+      @Override
+      public void onCarrierRoamingNtnModeChanged(boolean active) {
+        listener.onCarrierRoamingNtnModeChanged(active);
+      }
+    };
+    sCarrierRoamingNtnModeListenerWrapperMap.put(listener, internalListener);
+
+    TelephonyManager tm = mTelephonyManager.createForSubscriptionId(subId);
+    tm.registerTelephonyCallback(executor, (TelephonyCallback) internalListener);
+  }
+
+  /** Unregister for carrier roaming non-terrestrial network mode changes. */
+  public void unregisterForCarrierRoamingNtnModeChanged(int subId,
+          @NonNull CarrierRoamingNtnModeListenerWrapper listener) {
+    TelephonyCallback.CarrierRoamingNtnModeListener internalListener =
+            sCarrierRoamingNtnModeListenerWrapperMap.get(listener);
+    if (internalListener != null) {
+      TelephonyManager tm = mTelephonyManager.createForSubscriptionId(subId);
+      tm.unregisterTelephonyCallback((TelephonyCallback) internalListener);
     }
   }
 
   /** Poll pending satellite datagrams over satellite. */
-  public void pollPendingSatelliteDatagrams(
+  public void pollPendingDatagrams(
       @NonNull @CallbackExecutor Executor executor,
-      @SatelliteError @NonNull Consumer<Integer> resultListener) {
-    mSatelliteManager.pollPendingSatelliteDatagrams(executor, resultListener);
+      @SatelliteResult @NonNull Consumer<Integer> resultListener) {
+    mSatelliteManager.pollPendingDatagrams(executor, resultListener);
   }
 
   /**
@@ -674,19 +859,19 @@ public class SatelliteManagerWrapper {
    * input to this method. Datagram received here will be passed down to modem without any encoding
    * or encryption.
    */
-  public void sendSatelliteDatagram(
+  public void sendDatagram(
       @DatagramType int datagramType,
       @NonNull SatelliteDatagramWrapper datagram,
       boolean needFullScreenPointingUI,
       @NonNull @CallbackExecutor Executor executor,
-      @SatelliteError @NonNull Consumer<Integer> resultListener) {
+      @SatelliteResult @NonNull Consumer<Integer> resultListener) {
     SatelliteDatagram datagramInternal = new SatelliteDatagram(datagram.getSatelliteDatagram());
-    mSatelliteManager.sendSatelliteDatagram(
+    mSatelliteManager.sendDatagram(
         datagramType, datagramInternal, needFullScreenPointingUI, executor, resultListener);
   }
 
   /** Request to get whether satellite communication is allowed for the current location. */
-  public void requestIsSatelliteCommunicationAllowedForCurrentLocation(
+  public void requestIsCommunicationAllowedForCurrentLocation(
       @NonNull @CallbackExecutor Executor executor,
       @NonNull OutcomeReceiver<Boolean, SatelliteExceptionWrapper> callback) {
     OutcomeReceiver internalCallback =
@@ -701,7 +886,7 @@ public class SatelliteManagerWrapper {
             callback.onError(new SatelliteExceptionWrapper(exception.getErrorCode()));
           }
         };
-    mSatelliteManager.requestIsSatelliteCommunicationAllowedForCurrentLocation(
+    mSatelliteManager.requestIsCommunicationAllowedForCurrentLocation(
         executor, internalCallback);
   }
 
@@ -730,8 +915,8 @@ public class SatelliteManagerWrapper {
   /**
    * Inform whether the device is aligned with the satellite for demo mode.
    */
-  public void onDeviceAlignedWithSatellite(boolean isAligned) {
-    mSatelliteManager.onDeviceAlignedWithSatellite(isAligned);
+  public void setDeviceAlignedWithSatellite(boolean isAligned) {
+    mSatelliteManager.setDeviceAlignedWithSatellite(isAligned);
   }
 
   private Map<Integer, AntennaPositionWrapper> transformToAntennaPositionWrapperMap(
@@ -751,5 +936,380 @@ public class SatelliteManagerWrapper {
     }
 
     return output;
+  }
+
+  /** Request to get the signal strength of the satellite connection. */
+  @FlaggedApi(Flags.FLAG_OEM_ENABLED_SATELLITE_FLAG)
+  @NonNull
+  public void requestNtnSignalStrength(
+      @NonNull @CallbackExecutor Executor executor,
+      @NonNull OutcomeReceiver<NtnSignalStrengthWrapper, SatelliteExceptionWrapper> callback) {
+    OutcomeReceiver internalCallback =
+            new OutcomeReceiver<NtnSignalStrength, SatelliteException>() {
+              @Override
+              public void onResult(NtnSignalStrength result) {
+                callback.onResult(new NtnSignalStrengthWrapper(result.getLevel()));
+              }
+
+              @Override
+              public void onError(SatelliteException exception) {
+                callback.onError(new SatelliteExceptionWrapper(exception.getErrorCode()));
+          }
+        };
+    mSatelliteManager.requestNtnSignalStrength(executor, internalCallback);
+  }
+
+  /** Registers for NTN signal strength changed from satellite modem. */
+  @FlaggedApi(Flags.FLAG_OEM_ENABLED_SATELLITE_FLAG)
+  public void registerForNtnSignalStrengthChanged(
+      @NonNull @CallbackExecutor Executor executor,
+      @NonNull NtnSignalStrengthCallbackWrapper callback) {
+    NtnSignalStrengthCallback internalCallback =
+        new NtnSignalStrengthCallback() {
+          @Override
+          public void onNtnSignalStrengthChanged(@NonNull NtnSignalStrength ntnSignalStrength) {
+            callback.onNtnSignalStrengthChanged(
+                new NtnSignalStrengthWrapper(ntnSignalStrength.getLevel()));
+          }
+        };
+    sNtnSignalStrengthCallbackWrapperMap.put(callback, internalCallback);
+    mSatelliteManager.registerForNtnSignalStrengthChanged(executor, internalCallback);
+  }
+
+  /**
+   * Unregisters for NTN signal strength changed from satellite modem.
+   * If callback was not registered before, the request will be ignored.
+   */
+  @FlaggedApi(Flags.FLAG_OEM_ENABLED_SATELLITE_FLAG)
+  public void unregisterForNtnSignalStrengthChanged(
+      @NonNull NtnSignalStrengthCallbackWrapper callback) {
+    NtnSignalStrengthCallback internalCallback = sNtnSignalStrengthCallbackWrapperMap.get(callback);
+    if (internalCallback != null) {
+      try {
+        mSatelliteManager.unregisterForNtnSignalStrengthChanged(internalCallback);
+      } catch (Exception ex) {
+        throw ex;
+      }
+    }
+  }
+
+  /**
+   * Wrapper API to provide a way to check if the subscription is exclusively for non-terrestrial
+   * networks.
+   *
+   * @param subId The unique SubscriptionInfo key in database.
+   * @return {@code true} if it is a non-terrestrial network subscription, {@code false}
+   * otherwise.
+   * Note: The method returns {@code false} if the parameter is invalid or any other error occurs.
+   */
+  @FlaggedApi(Flags.FLAG_OEM_ENABLED_SATELLITE_FLAG)
+  public boolean isOnlyNonTerrestrialNetworkSubscription(int subId) {
+    List<SubscriptionInfo> subInfoList = mSubscriptionManager.getAvailableSubscriptionInfoList();
+
+    for (SubscriptionInfo subInfo : subInfoList) {
+      if (subInfo.getSubscriptionId() == subId) {
+        logd("found matched subscription info");
+        return subInfo.isOnlyNonTerrestrialNetwork();
+      }
+    }
+    logd("failed to found matched subscription info");
+    return false;
+  }
+
+  /**
+   * Wrapper API to register for satellite capabilities change event from the satellite service.
+   *
+   * @param executor The executor on which the callback will be called.
+   * @param callback The callback to handle the satellite capabilities changed event.
+   */
+  @FlaggedApi(Flags.FLAG_OEM_ENABLED_SATELLITE_FLAG)
+  public int registerForCapabilitiesChanged(
+          @NonNull @CallbackExecutor Executor executor,
+          @NonNull SatelliteCapabilitiesCallbackWrapper callback) {
+    SatelliteCapabilitiesCallback internalCallback =
+            capabilities -> callback.onSatelliteCapabilitiesChanged(
+                    new SatelliteCapabilitiesWrapper(
+                            capabilities.getSupportedRadioTechnologies(),
+                            capabilities.isPointingRequired(),
+                            capabilities.getMaxBytesPerOutgoingDatagram(),
+                            transformToAntennaPositionWrapperMap(
+                                    capabilities.getAntennaPositionMap())));
+    sSatelliteCapabilitiesCallbackWrapperMap.put(callback, internalCallback);
+    return mSatelliteManager.registerForCapabilitiesChanged(executor, internalCallback);
+  }
+
+  /**
+   * Wrapper API to unregisters for satellite capabilities change event from the satellite service.
+   * If callback was not registered before, the request will be ignored.
+   *
+   * @param callback The callback that was passed to.
+   */
+  @FlaggedApi(Flags.FLAG_OEM_ENABLED_SATELLITE_FLAG)
+  public void unregisterForCapabilitiesChanged(
+          @NonNull SatelliteCapabilitiesCallbackWrapper callback) {
+    SatelliteCapabilitiesCallback internalCallback =
+            sSatelliteCapabilitiesCallbackWrapperMap.get(callback);
+    if (internalCallback != null) {
+      mSatelliteManager.unregisterForCapabilitiesChanged(internalCallback);
+    }
+  }
+
+  /**
+   * Wrapper API to provide whether current network is non-terrestrial network or not.
+   *
+   * @param subId Subscription ID.
+   *
+   * @return {@code true} if current network is a non-terrestrial network, {@code false} otherwise.
+   * Note: The method returns {@code false} if the no available network info or any other error
+   * occurs.
+   */
+  public boolean isNonTerrestrialNetwork(int subId) {
+    ServiceState ss = getServiceStateForSubscriptionId(subId);
+
+    if (ss == null) {
+      logd("isNonTerrestrialNetwork(): ServiceState is null, return");
+      return false;
+    }
+
+    NetworkRegistrationInfo nri = ss.getNetworkRegistrationInfo(DOMAIN_PS, TRANSPORT_TYPE_WWAN);
+    if (nri == null) {
+      logd("isNonTerrestrialNetwork(): NetworkRegistrationInfo is null, return");
+      return false;
+    }
+
+    boolean isNonTerrestrialNetwork = nri.isNonTerrestrialNetwork();
+    logd("isNonTerrestrialNetwork = " + isNonTerrestrialNetwork);
+    return isNonTerrestrialNetwork;
+  }
+
+  /**
+   * Wrapper API to provide the list of available services.
+   *
+   * @param subId Subscription ID.
+   *
+   * @return the list of available service types for given subscription ID.
+   * Note: The method returns empty list if no service is available or any other error occurs.
+   */
+  @NonNull
+  public List<Integer> getAvailableServices(int subId) {
+    ServiceState ss = getServiceStateForSubscriptionId(subId);
+    if (ss == null) {
+      logd("getAvailableServices(): ServiceState is null, return");
+      return new ArrayList<>();
+    }
+
+    NetworkRegistrationInfo nri = ss.getNetworkRegistrationInfo(DOMAIN_PS, TRANSPORT_TYPE_WWAN);
+    if (nri == null) {
+      logd("getAvailableServices(): NetworkRegistrationInfo is null, return empty list");
+      return new ArrayList<>();
+    }
+
+    List<Integer> serviceType = nri.getAvailableServices();
+    logd("getAvailableServices() : serviceType=" + serviceType.stream().map(
+            Object::toString).collect(Collectors.joining(", ")));
+    return serviceType;
+  }
+
+  /**
+   * Wrapper API to get whether device is connected to a non-terrestrial network.
+   *
+   * @param subId Subscription ID.
+   *
+   * @return {@code true} if device is connected to a non-terrestrial network, {@code false}
+   * otherwise.
+   * Note: The method returns {@code false} if the no available network info or any other error
+   * occurs.
+   */
+  public boolean isUsingNonTerrestrialNetwork(int subId) {
+    ServiceState ss = getServiceStateForSubscriptionId(subId);
+
+    if (ss == null) {
+      logd("isUsingNonTerrestrialNetwork(): ServiceState is null, return");
+      return false;
+    }
+
+    boolean isUsingNonTerrestrialNetwork = ss.isUsingNonTerrestrialNetwork();
+    logd("isUsingNonTerrestrialNetwork() returns " + isUsingNonTerrestrialNetwork);
+    return isUsingNonTerrestrialNetwork;
+  }
+
+  /**
+   * User request to enable or disable carrier supported satellite plmn scan and attach by modem.
+   * <p>
+   * This API should be called by only settings app to pass down the user input for
+   * enabling/disabling satellite. This user input will be persisted across device reboots.
+   * <p>
+   * Satellite will be enabled only when the following conditions are met:
+   * <ul>
+   * <li>Users want to enable it.</li>
+   * <li>There is no satellite communication restriction, which is added by
+   * {@link #addAttachRestrictionForCarrier(int, int, Executor, Consumer)}</li>
+   * <li>The carrier config {@link
+   * android.telephony.CarrierConfigManager#KEY_SATELLITE_ATTACH_SUPPORTED_BOOL} is set to
+   * {@code true}.</li>
+   * </ul>
+   *
+   * @param subId The subscription ID of the carrier.
+   * @param enableSatellite {@code true} to enable the satellite and {@code false} to disable.
+   * @param executor The executor on which the error code listener will be called.
+   * @param resultListener Listener for the {@link SatelliteResult} result of the operation.
+   *
+   * @throws SecurityException if the caller doesn't have required permission.
+   * @throws IllegalArgumentException if the subscription is invalid.
+   */
+  public void requestAttachEnabledForCarrier(int subId, boolean enableSatellite,
+          @NonNull @CallbackExecutor Executor executor,
+          @SatelliteResult @NonNull Consumer<Integer> resultListener) {
+    mSatelliteManager.requestAttachEnabledForCarrier(subId, enableSatellite, executor,
+            resultListener);
+  }
+
+  /**
+   * Request to get whether the carrier supported satellite plmn scan and attach by modem is
+   * enabled by user.
+   *
+   * @param subId The subscription ID of the carrier.
+   * @param executor The executor on which the callback will be called.
+   * @param callback The callback object to which the result will be delivered.
+   *                 If the request is successful, {@link OutcomeReceiver#onResult(Object)}
+   *                 will return a {@code boolean} with value {@code true} if the satellite
+   *                 is enabled and {@code false} otherwise.
+   *                 If the request is not successful, {@link OutcomeReceiver#onError(Throwable)}
+   *                 will return a {@link SatelliteExceptionWrapper} with the
+   *                 {@link SatelliteResult}.
+   *
+   * @throws SecurityException if the caller doesn't have required permission.
+   * @throws IllegalStateException if the Telephony process is not currently available.
+   * @throws IllegalArgumentException if the subscription is invalid.
+   */
+  public void requestIsAttachEnabledForCarrier(int subId,
+          @NonNull @CallbackExecutor Executor executor,
+          @NonNull OutcomeReceiver<Boolean, SatelliteExceptionWrapper> callback) {
+    OutcomeReceiver internalCallback =
+            new OutcomeReceiver<Boolean, SatelliteException>() {
+              @Override
+              public void onResult(Boolean result) {
+                callback.onResult(result);
+              }
+
+              @Override
+              public void onError(SatelliteException exception) {
+                callback.onError(new SatelliteExceptionWrapper(exception.getErrorCode()));
+              }
+            };
+    mSatelliteManager.requestIsAttachEnabledForCarrier(subId, executor, internalCallback);
+  }
+
+  /**
+   * Add a restriction reason for disallowing carrier supported satellite plmn scan and attach
+   * by modem.
+   *
+   * @param subId The subscription ID of the carrier.
+   * @param reason Reason for disallowing satellite communication.
+   * @param executor The executor on which the error code listener will be called.
+   * @param resultListener Listener for the {@link SatelliteResult} result of the
+   * operation.
+   *
+   * @throws SecurityException if the caller doesn't have required permission.
+   * @throws IllegalArgumentException if the subscription is invalid.
+   */
+  public void addAttachRestrictionForCarrier(int subId,
+          @SatelliteCommunicationRestrictionReason int reason,
+          @NonNull @CallbackExecutor Executor executor,
+          @SatelliteResult @NonNull Consumer<Integer> resultListener) {
+    mSatelliteManager.addAttachRestrictionForCarrier(subId, reason, executor, resultListener);
+  }
+
+  /**
+   * Remove a restriction reason for disallowing carrier supported satellite plmn scan and attach
+   * by modem.
+   *
+   * @param subId The subscription ID of the carrier.
+   * @param reason Reason for disallowing satellite communication.
+   * @param executor The executor on which the error code listener will be called.
+   * @param resultListener Listener for the {@link SatelliteResult} result of the
+   * operation.
+   *
+   * @throws SecurityException if the caller doesn't have required permission.
+   * @throws IllegalArgumentException if the subscription is invalid.
+   */
+  public void removeAttachRestrictionForCarrier(int subId,
+          @SatelliteCommunicationRestrictionReason int reason,
+          @NonNull @CallbackExecutor Executor executor,
+          @SatelliteResult @NonNull Consumer<Integer> resultListener) {
+    mSatelliteManager.removeAttachRestrictionForCarrier(subId, reason, executor, resultListener);
+  }
+
+  /**
+   * Get reasons for disallowing satellite attach, as requested by
+   * {@link #addAttachRestrictionForCarrier(int, int, Executor, Consumer)}
+   *
+   * @param subId The subscription ID of the carrier.
+   * @return Set of reasons for disallowing satellite communication.
+   *
+   * @throws SecurityException if the caller doesn't have required permission.
+   * @throws IllegalStateException if the Telephony process is not currently available.
+   * @throws IllegalArgumentException if the subscription is invalid.
+   */
+  @SatelliteCommunicationRestrictionReason
+  @NonNull public Set<Integer> getAttachRestrictionReasonsForCarrier(int subId) {
+    return mSatelliteManager.getAttachRestrictionReasonsForCarrier(subId);
+  }
+
+  /**
+   * Get all satellite PLMNs for which attach is enable for carrier.
+   *
+   * @param subId subId The subscription ID of the carrier.
+   *
+   * @return List of plmn for carrier satellite service. If no plmn is available, empty list will
+   * be returned.
+   */
+  @NonNull public List<String> getSatellitePlmnsForCarrier(int subId) {
+    return mSatelliteManager.getSatellitePlmnsForCarrier(subId);
+  }
+
+  /** Registers for the satellite supported state changed. */
+  @SatelliteResult
+  public int registerForSupportedStateChanged(
+          @NonNull @CallbackExecutor Executor executor,
+          @NonNull SatelliteSupportedStateCallbackWrapper callback) {
+    SatelliteSupportedStateCallback internalCallback =
+            new SatelliteSupportedStateCallback() {
+              @Override
+              public void onSatelliteSupportedStateChanged(boolean supported) {
+                callback.onSatelliteSupportedStateChanged(supported);
+              }
+            };
+    sSatelliteSupportedStateCallbackWrapperMap.put(callback, internalCallback);
+    int result =
+            mSatelliteManager.registerForSupportedStateChanged(executor, internalCallback);
+    return result;
+  }
+
+  /**
+   * Unregisters for the satellite supported state changed. If callback was not registered before,
+   * the request will be ignored.
+   */
+  public void unregisterForSupportedStateChanged(
+          @NonNull SatelliteSupportedStateCallbackWrapper callback) {
+    SatelliteSupportedStateCallback internalCallback =
+            sSatelliteSupportedStateCallbackWrapperMap.get(callback);
+    if (internalCallback != null) {
+      mSatelliteManager.unregisterForSupportedStateChanged(internalCallback);
+    }
+  }
+
+  @Nullable
+  private ServiceState getServiceStateForSubscriptionId(int subId) {
+    if (!mSubscriptionManager.isValidSubscriptionId(subId)) {
+      return null;
+    }
+
+    TelephonyManager tm = mTelephonyManager.createForSubscriptionId(subId);
+    return tm.getServiceState();
+  }
+
+  private void logd(String message) {
+    Rlog.d(TAG, message);
   }
 }
