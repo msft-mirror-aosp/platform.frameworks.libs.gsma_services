@@ -46,6 +46,7 @@ import android.telephony.satellite.SatelliteDatagramCallback;
 import android.telephony.satellite.SatelliteManager;
 import android.telephony.satellite.SatelliteModemStateCallback;
 import android.telephony.satellite.SatelliteProvisionStateCallback;
+import android.telephony.satellite.SatelliteSessionStats;
 import android.telephony.satellite.SatelliteSupportedStateCallback;
 import android.telephony.satellite.SatelliteTransmissionUpdateCallback;
 
@@ -1284,6 +1285,38 @@ public class SatelliteManagerWrapper {
     int result =
             mSatelliteManager.registerForSupportedStateChanged(executor, internalCallback);
     return result;
+  }
+
+  /** Request to get the {@link SatelliteSessionStatsWrapper} of the satellite service. */
+  public void requestSessionStats(
+          @NonNull @CallbackExecutor Executor executor,
+          @NonNull OutcomeReceiver<SatelliteSessionStatsWrapper,
+                  SatelliteExceptionWrapper> callback) {
+    OutcomeReceiver internalCallback =
+            new OutcomeReceiver<SatelliteSessionStats, SatelliteException>() {
+              @Override
+              public void onResult(SatelliteSessionStats result) {
+                SatelliteSessionStatsWrapper statsWrapper = new SatelliteSessionStatsWrapper
+                        .Builder()
+                        .setCountOfSuccessfulUserMessages(result.getCountOfSuccessfulUserMessages())
+                        .setCountOfUnsuccessfulUserMessages(
+                                result.getCountOfUnsuccessfulUserMessages())
+                        .setCountOfTimedOutUserMessagesWaitingForConnection(
+                                result.getCountOfTimedOutUserMessagesWaitingForConnection())
+                        .setCountOfTimedOutUserMessagesWaitingForAck(
+                                result.getCountOfTimedOutUserMessagesWaitingForAck())
+                        .setCountOfUserMessagesInQueueToBeSent(
+                                result.getCountOfUserMessagesInQueueToBeSent())
+                        .build();
+                callback.onResult(statsWrapper);
+              }
+
+              @Override
+              public void onError(SatelliteException exception) {
+                callback.onError(new SatelliteExceptionWrapper(exception.getErrorCode()));
+              }
+            };
+    mSatelliteManager.requestSessionStats(executor, internalCallback);
   }
 
   /**
