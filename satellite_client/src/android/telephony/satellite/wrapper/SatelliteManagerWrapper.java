@@ -41,6 +41,7 @@ import android.telephony.satellite.NtnSignalStrengthCallback;
 import android.telephony.satellite.PointingInfo;
 import android.telephony.satellite.SatelliteCapabilities;
 import android.telephony.satellite.SatelliteCapabilitiesCallback;
+import android.telephony.satellite.SatelliteCommunicationAllowedStateCallback;
 import android.telephony.satellite.SatelliteDatagram;
 import android.telephony.satellite.SatelliteDatagramCallback;
 import android.telephony.satellite.SatelliteManager;
@@ -103,6 +104,10 @@ public class SatelliteManagerWrapper {
   private static final ConcurrentHashMap<
           CarrierRoamingNtnModeListenerWrapper, TelephonyCallback.CarrierRoamingNtnModeListener>
           sCarrierRoamingNtnModeListenerWrapperMap = new ConcurrentHashMap<>();
+
+  private static final ConcurrentHashMap<SatelliteCommunicationAllowedStateCallbackWrapper,
+          SatelliteCommunicationAllowedStateCallback>
+          sSatelliteCommunicationAllowedStateCallbackWrapperMap = new ConcurrentHashMap<>();
 
   private final SatelliteManager mSatelliteManager;
   private final SubscriptionManager mSubscriptionManager;
@@ -1296,6 +1301,37 @@ public class SatelliteManagerWrapper {
             sSatelliteSupportedStateCallbackWrapperMap.get(callback);
     if (internalCallback != null) {
       mSatelliteManager.unregisterForSupportedStateChanged(internalCallback);
+    }
+  }
+
+  /** Registers for the satellite communication allowed state changed. */
+  @SatelliteResult
+  public int registerForCommunicationAllowedStateChanged(
+          @NonNull @CallbackExecutor Executor executor,
+          @NonNull SatelliteCommunicationAllowedStateCallbackWrapper callback) {
+    SatelliteCommunicationAllowedStateCallback internalCallback =
+            new SatelliteCommunicationAllowedStateCallback() {
+              @Override
+              public void onSatelliteCommunicationAllowedStateChanged(boolean supported) {
+                callback.onSatelliteCommunicationAllowedStateChanged(supported);
+              }
+            };
+    sSatelliteCommunicationAllowedStateCallbackWrapperMap.put(callback, internalCallback);
+    int result = mSatelliteManager.registerForCommunicationAllowedStateChanged(executor,
+            internalCallback);
+    return result;
+  }
+
+  /**
+   * Unregisters for the satellite communication allowed state changed. If callback was not
+   * registered before, the request will be ignored.
+   */
+  public void unregisterForCommunicationAllowedStateChanged(
+          @NonNull SatelliteCommunicationAllowedStateCallbackWrapper callback) {
+    SatelliteCommunicationAllowedStateCallback internalCallback =
+            sSatelliteCommunicationAllowedStateCallbackWrapperMap.get(callback);
+    if (internalCallback != null) {
+      mSatelliteManager.unregisterForCommunicationAllowedStateChanged(internalCallback);
     }
   }
 
