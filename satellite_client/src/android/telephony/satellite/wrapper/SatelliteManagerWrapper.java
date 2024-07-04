@@ -104,8 +104,8 @@ public class SatelliteManagerWrapper {
           SatelliteSupportedStateCallbackWrapper, SatelliteSupportedStateCallback>
           sSatelliteSupportedStateCallbackWrapperMap = new ConcurrentHashMap<>();
 
-  private static final ConcurrentHashMap<
-          CarrierRoamingNtnModeListenerWrapper, TelephonyCallback.CarrierRoamingNtnModeListener>
+  private static final ConcurrentHashMap<CarrierRoamingNtnModeListenerWrapper,
+          CarrierRoamingNtnModeListener>
           sCarrierRoamingNtnModeListenerWrapperMap = new ConcurrentHashMap<>();
 
   private static final ConcurrentHashMap<SatelliteCommunicationAllowedStateCallbackWrapper,
@@ -825,31 +825,43 @@ public class SatelliteManagerWrapper {
     }
   }
 
+  private class CarrierRoamingNtnModeListener extends TelephonyCallback
+          implements TelephonyCallback.CarrierRoamingNtnModeListener {
+
+    private CarrierRoamingNtnModeListenerWrapper mListenerWrapper;
+
+    public CarrierRoamingNtnModeListener(CarrierRoamingNtnModeListenerWrapper listenerWrapper) {
+      mListenerWrapper = listenerWrapper;
+    }
+
+    @Override
+    public void onCarrierRoamingNtnModeChanged(boolean active) {
+      logd("onCarrierRoamingNtnModeChanged: active=" + active);
+      mListenerWrapper.onCarrierRoamingNtnModeChanged(active);
+    }
+  }
+
   /** Register for carrier roaming non-terrestrial network mode changes. */
   public void registerForCarrierRoamingNtnModeChanged(int subId,
           @NonNull @CallbackExecutor Executor executor,
           @NonNull CarrierRoamingNtnModeListenerWrapper listener) {
-    TelephonyCallback.CarrierRoamingNtnModeListener internalListener = new TelephonyCallback
-            .CarrierRoamingNtnModeListener() {
-      @Override
-      public void onCarrierRoamingNtnModeChanged(boolean active) {
-        listener.onCarrierRoamingNtnModeChanged(active);
-      }
-    };
+    logd("registerForCarrierRoamingNtnModeChanged: subId=" + subId);
+    CarrierRoamingNtnModeListener internalListener = new CarrierRoamingNtnModeListener(listener);
     sCarrierRoamingNtnModeListenerWrapperMap.put(listener, internalListener);
 
     TelephonyManager tm = mTelephonyManager.createForSubscriptionId(subId);
-    tm.registerTelephonyCallback(executor, (TelephonyCallback) internalListener);
+    tm.registerTelephonyCallback(executor, internalListener);
   }
 
   /** Unregister for carrier roaming non-terrestrial network mode changes. */
   public void unregisterForCarrierRoamingNtnModeChanged(int subId,
           @NonNull CarrierRoamingNtnModeListenerWrapper listener) {
-    TelephonyCallback.CarrierRoamingNtnModeListener internalListener =
+    logd("unregisterForCarrierRoamingNtnModeChanged: subId=" + subId);
+    CarrierRoamingNtnModeListener internalListener =
             sCarrierRoamingNtnModeListenerWrapperMap.get(listener);
     if (internalListener != null) {
       TelephonyManager tm = mTelephonyManager.createForSubscriptionId(subId);
-      tm.unregisterTelephonyCallback((TelephonyCallback) internalListener);
+      tm.unregisterTelephonyCallback(internalListener);
     }
   }
 
