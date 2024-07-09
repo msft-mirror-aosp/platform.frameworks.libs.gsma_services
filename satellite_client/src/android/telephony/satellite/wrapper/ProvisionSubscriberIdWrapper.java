@@ -21,13 +21,14 @@ import android.annotation.NonNull;
 import java.util.Objects;
 
 public class ProvisionSubscriberIdWrapper {
-    @NonNull
-    private final String subscriberId;
+    @NonNull private final String subscriberId;
     private int carrierId;
+    @NonNull private final String niddApn;
 
-    public ProvisionSubscriberIdWrapper(String subscriberId, int carrierId) {
+    public ProvisionSubscriberIdWrapper(String subscriberId, int carrierId, String niddApn) {
         this.subscriberId = subscriberId;
         this.carrierId = carrierId;
+        this.niddApn = niddApn;
     }
 
     @NonNull
@@ -37,6 +38,11 @@ public class ProvisionSubscriberIdWrapper {
 
     public int getCarrierId() {
         return carrierId;
+    }
+
+    @NonNull
+    public String getNiddApn() {
+        return niddApn;
     }
 
     @Override
@@ -49,6 +55,10 @@ public class ProvisionSubscriberIdWrapper {
 
         sb.append("carrierId:");
         sb.append(carrierId);
+        sb.append(",");
+
+        sb.append("niddApn:");
+        sb.append(niddApn);
         return sb.toString();
     }
 
@@ -58,11 +68,11 @@ public class ProvisionSubscriberIdWrapper {
         if (o == null || getClass() != o.getClass()) return false;
         ProvisionSubscriberIdWrapper that = (ProvisionSubscriberIdWrapper) o;
         return Objects.equals(subscriberId, that.subscriberId)
-                && carrierId == that.carrierId;
+                && carrierId == that.carrierId && Objects.equals(niddApn, that.niddApn);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(subscriberId, carrierId);
+        return Objects.hash(subscriberId, carrierId, niddApn);
     }
 }
