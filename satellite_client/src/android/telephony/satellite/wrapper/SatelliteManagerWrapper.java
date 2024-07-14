@@ -1429,7 +1429,8 @@ public class SatelliteManagerWrapper {
               @Override
               public void onResult(List<ProvisionSubscriberId> result) {
                 callback.onResult(result.stream().map(ids -> new ProvisionSubscriberIdWrapper(
-                        ids.getSubscriberId(), ids.getCarrierId())).collect(Collectors.toList()));
+                        ids.getSubscriberId(), ids.getCarrierId(), ids.getNiddApn())).collect(
+                        Collectors.toList()));
               }
 
               @Override
@@ -1491,7 +1492,7 @@ public class SatelliteManagerWrapper {
             };
     mSatelliteManager.provisionSatellite(list.stream()
             .map(wrapper -> new ProvisionSubscriberId(wrapper.getSubscriberId(),
-                    wrapper.getCarrierId()))
+                    wrapper.getCarrierId(), wrapper.getNiddApn()))
             .collect(Collectors.toList()), executor, internalCallback);
   }
 
