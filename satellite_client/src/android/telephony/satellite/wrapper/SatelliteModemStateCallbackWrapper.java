@@ -17,7 +17,7 @@
 package android.telephony.satellite.wrapper;
 
 /** A callback class for monitoring satellite modem state change events. */
-public interface SatelliteStateCallbackWrapper {
+public interface SatelliteModemStateCallbackWrapper {
 
   /**
    * Called when satellite modem state changes.
