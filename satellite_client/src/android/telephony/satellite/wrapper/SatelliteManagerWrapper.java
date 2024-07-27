@@ -845,6 +845,12 @@ public class SatelliteManagerWrapper {
       logd("onCarrierRoamingNtnModeChanged: active=" + active);
       mListenerWrapper.onCarrierRoamingNtnModeChanged(active);
     }
+
+    @Override
+    public void onCarrierRoamingNtnEligibleStateChanged(boolean eligible) {
+      logd("onCarrierRoamingNtnEligibleStateChanged: eligible=" + eligible);
+      mListenerWrapper.onCarrierRoamingNtnEligibleStateChanged(eligible);
+    }
   }
 
   /** Register for carrier roaming non-terrestrial network mode changes. */
