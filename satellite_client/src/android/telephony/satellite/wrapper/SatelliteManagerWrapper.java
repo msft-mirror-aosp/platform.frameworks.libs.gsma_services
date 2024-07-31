@@ -104,8 +104,8 @@ public class SatelliteManagerWrapper {
           SatelliteSupportedStateCallbackWrapper, SatelliteSupportedStateCallback>
           sSatelliteSupportedStateCallbackWrapperMap = new ConcurrentHashMap<>();
 
-  private static final ConcurrentHashMap<
-          CarrierRoamingNtnModeListenerWrapper, TelephonyCallback.CarrierRoamingNtnModeListener>
+  private static final ConcurrentHashMap<CarrierRoamingNtnModeListenerWrapper,
+          CarrierRoamingNtnModeListener>
           sCarrierRoamingNtnModeListenerWrapperMap = new ConcurrentHashMap<>();
 
   private static final ConcurrentHashMap<SatelliteCommunicationAllowedStateCallbackWrapper,
@@ -156,6 +156,11 @@ public class SatelliteManagerWrapper {
    * is the last message to emergency service provider indicating no more help is needed.
    */
   public static final int DATAGRAM_TYPE_LAST_SOS_MESSAGE_NO_HELP_NEEDED = 5;
+  /**
+   * Datagram type indicating that the message to be sent or received is of type SMS.
+   */
+  public static final int DATAGRAM_TYPE_SMS = 6;
+
   /** @hide */
   @IntDef(
       prefix = "DATAGRAM_TYPE_",
@@ -165,7 +170,8 @@ public class SatelliteManagerWrapper {
               DATAGRAM_TYPE_LOCATION_SHARING,
               DATAGRAM_TYPE_KEEP_ALIVE,
               DATAGRAM_TYPE_LAST_SOS_MESSAGE_STILL_NEED_HELP,
-              DATAGRAM_TYPE_LAST_SOS_MESSAGE_NO_HELP_NEEDED
+              DATAGRAM_TYPE_LAST_SOS_MESSAGE_NO_HELP_NEEDED,
+              DATAGRAM_TYPE_SMS
       })
   @Retention(RetentionPolicy.SOURCE)
   public @interface DatagramType {}
@@ -825,31 +831,49 @@ public class SatelliteManagerWrapper {
     }
   }
 
+  private class CarrierRoamingNtnModeListener extends TelephonyCallback
+          implements TelephonyCallback.CarrierRoamingNtnModeListener {
+
+    private CarrierRoamingNtnModeListenerWrapper mListenerWrapper;
+
+    public CarrierRoamingNtnModeListener(CarrierRoamingNtnModeListenerWrapper listenerWrapper) {
+      mListenerWrapper = listenerWrapper;
+    }
+
+    @Override
+    public void onCarrierRoamingNtnModeChanged(boolean active) {
+      logd("onCarrierRoamingNtnModeChanged: active=" + active);
+      mListenerWrapper.onCarrierRoamingNtnModeChanged(active);
+    }
+
+    @Override
+    public void onCarrierRoamingNtnEligibleStateChanged(boolean eligible) {
+      logd("onCarrierRoamingNtnEligibleStateChanged: eligible=" + eligible);
+      mListenerWrapper.onCarrierRoamingNtnEligibleStateChanged(eligible);
+    }
+  }
+
   /** Register for carrier roaming non-terrestrial network mode changes. */
   public void registerForCarrierRoamingNtnModeChanged(int subId,
           @NonNull @CallbackExecutor Executor executor,
           @NonNull CarrierRoamingNtnModeListenerWrapper listener) {
-    TelephonyCallback.CarrierRoamingNtnModeListener internalListener = new TelephonyCallback
-            .CarrierRoamingNtnModeListener() {
-      @Override
-      public void onCarrierRoamingNtnModeChanged(boolean active) {
-        listener.onCarrierRoamingNtnModeChanged(active);
-      }
-    };
+    logd("registerForCarrierRoamingNtnModeChanged: subId=" + subId);
+    CarrierRoamingNtnModeListener internalListener = new CarrierRoamingNtnModeListener(listener);
     sCarrierRoamingNtnModeListenerWrapperMap.put(listener, internalListener);
 
     TelephonyManager tm = mTelephonyManager.createForSubscriptionId(subId);
-    tm.registerTelephonyCallback(executor, (TelephonyCallback) internalListener);
+    tm.registerTelephonyCallback(executor, internalListener);
   }
 
   /** Unregister for carrier roaming non-terrestrial network mode changes. */
   public void unregisterForCarrierRoamingNtnModeChanged(int subId,
           @NonNull CarrierRoamingNtnModeListenerWrapper listener) {
-    TelephonyCallback.CarrierRoamingNtnModeListener internalListener =
+    logd("unregisterForCarrierRoamingNtnModeChanged: subId=" + subId);
+    CarrierRoamingNtnModeListener internalListener =
             sCarrierRoamingNtnModeListenerWrapperMap.get(listener);
     if (internalListener != null) {
       TelephonyManager tm = mTelephonyManager.createForSubscriptionId(subId);
-      tm.unregisterTelephonyCallback((TelephonyCallback) internalListener);
+      tm.unregisterTelephonyCallback(internalListener);
     }
   }
 
@@ -1417,7 +1441,8 @@ public class SatelliteManagerWrapper {
               @Override
               public void onResult(List<ProvisionSubscriberId> result) {
                 callback.onResult(result.stream().map(ids -> new ProvisionSubscriberIdWrapper(
-                        ids.getSubscriberId(), ids.getCarrierId())).collect(Collectors.toList()));
+                        ids.getSubscriberId(), ids.getCarrierId(), ids.getNiddApn())).collect(
+                        Collectors.toList()));
               }
 
               @Override
@@ -1479,7 +1504,7 @@ public class SatelliteManagerWrapper {
             };
     mSatelliteManager.provisionSatellite(list.stream()
             .map(wrapper -> new ProvisionSubscriberId(wrapper.getSubscriberId(),
-                    wrapper.getCarrierId()))
+                    wrapper.getCarrierId(), wrapper.getNiddApn()))
             .collect(Collectors.toList()), executor, internalCallback);
   }
 
