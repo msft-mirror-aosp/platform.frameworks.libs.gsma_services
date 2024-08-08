@@ -401,6 +401,28 @@ public class SatelliteManagerWrapper {
   public static final int SATELLITE_RESULT_MODEM_BUSY = 22;
   /** Telephony process is not currently available or satellite is not supported. */
   public static final int SATELLITE_RESULT_ILLEGAL_STATE = 23;
+  /**
+   * Telephony framework timeout to receive ACK or response from the satellite modem after
+   * sending a request to the modem.
+   */
+  public static final int SATELLITE_RESULT_MODEM_TIMEOUT = 24;
+
+  /**
+   * Telephony framework needs to access the current location of the device to perform the
+   * request. However, location in the settings is disabled by users.
+   */
+  public static final int SATELLITE_RESULT_LOCATION_DISABLED = 25;
+
+  /**
+   * Telephony framework needs to access the current location of the device to perform the
+   * request. However, Telephony fails to fetch the current location from location service.
+   */
+  public static final int SATELLITE_RESULT_LOCATION_NOT_AVAILABLE = 26;
+
+  /**
+   * Emergency call is in progress.
+   */
+  public static final int SATELLITE_RESULT_EMERGENCY_CALL_IN_PROGRESS = 27;
 
   /** @hide */
   @IntDef(
@@ -429,7 +451,11 @@ public class SatelliteManagerWrapper {
         SATELLITE_RESULT_NOT_SUPPORTED,
         SATELLITE_RESULT_REQUEST_IN_PROGRESS,
         SATELLITE_RESULT_MODEM_BUSY,
-        SATELLITE_RESULT_ILLEGAL_STATE
+        SATELLITE_RESULT_ILLEGAL_STATE,
+        SATELLITE_RESULT_MODEM_TIMEOUT,
+        SATELLITE_RESULT_LOCATION_DISABLED,
+        SATELLITE_RESULT_LOCATION_NOT_AVAILABLE,
+        SATELLITE_RESULT_EMERGENCY_CALL_IN_PROGRESS
       })
   @Retention(RetentionPolicy.SOURCE)
   public @interface SatelliteResult {}
