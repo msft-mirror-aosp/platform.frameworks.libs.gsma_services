@@ -48,8 +48,8 @@ import android.telephony.satellite.SatelliteManager;
 import android.telephony.satellite.SatelliteModemStateCallback;
 import android.telephony.satellite.SatelliteProvisionStateCallback;
 import android.telephony.satellite.SatelliteSessionStats;
+import android.telephony.satellite.SatelliteSubscriberInfo;
 import android.telephony.satellite.SatelliteSupportedStateCallback;
-import android.telephony.satellite.ProvisionSubscriberId;
 import android.telephony.satellite.SatelliteTransmissionUpdateCallback;
 
 import com.android.internal.telephony.flags.Flags;
@@ -1461,16 +1461,16 @@ public class SatelliteManagerWrapper {
    */
   @FlaggedApi(Flags.FLAG_CARRIER_ROAMING_NB_IOT_NTN)
   public void requestProvisionSubscriberIds(@NonNull @CallbackExecutor Executor executor,
-          @NonNull OutcomeReceiver<List<ProvisionSubscriberIdWrapper>,
+          @NonNull OutcomeReceiver<List<SatelliteSubscriberInfoWrapper>,
           SatelliteExceptionWrapper> callback) {
     Objects.requireNonNull(executor);
     Objects.requireNonNull(callback);
 
     OutcomeReceiver internalCallback =
-            new OutcomeReceiver<List<ProvisionSubscriberId>, SatelliteException>() {
+            new OutcomeReceiver<List<SatelliteSubscriberInfo>, SatelliteException>() {
               @Override
-              public void onResult(List<ProvisionSubscriberId> result) {
-                callback.onResult(result.stream().map(ids -> new ProvisionSubscriberIdWrapper(
+              public void onResult(List<SatelliteSubscriberInfo> result) {
+                callback.onResult(result.stream().map(ids -> new SatelliteSubscriberInfoWrapper(
                         ids.getSubscriberId(), ids.getCarrierId(), ids.getNiddApn())).collect(
                         Collectors.toList()));
               }
@@ -1512,12 +1512,12 @@ public class SatelliteManagerWrapper {
   /**
    * Deliver the list of provisioned satellite subscriber ids.
    *
-   * @param list List of ProvisionSubscriberId.
+   * @param list List of SatelliteSubscriberInfo.
    * @param executor The executor on which the callback will be called.
    * @param callback The callback object to which the result will be delivered.
    */
   @FlaggedApi(Flags.FLAG_CARRIER_ROAMING_NB_IOT_NTN)
-  public void provisionSatellite(@NonNull List<ProvisionSubscriberIdWrapper> list,
+  public void provisionSatellite(@NonNull List<SatelliteSubscriberInfoWrapper> list,
           @NonNull @CallbackExecutor Executor executor,
           @NonNull OutcomeReceiver<Boolean, SatelliteExceptionWrapper> callback) {
     OutcomeReceiver internalCallback =
@@ -1533,7 +1533,7 @@ public class SatelliteManagerWrapper {
               }
             };
     mSatelliteManager.provisionSatellite(list.stream()
-            .map(wrapper -> new ProvisionSubscriberId(wrapper.getSubscriberId(),
+            .map(wrapper -> new SatelliteSubscriberInfo(wrapper.getSubscriberId(),
                     wrapper.getCarrierId(), wrapper.getNiddApn()))
             .collect(Collectors.toList()), executor, internalCallback);
   }
