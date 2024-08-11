@@ -20,12 +20,12 @@ import android.annotation.NonNull;
 
 import java.util.Objects;
 
-public class ProvisionSubscriberIdWrapper {
+public class SatelliteSubscriberInfoWrapper {
     @NonNull private final String subscriberId;
     private int carrierId;
     @NonNull private final String niddApn;
 
-    public ProvisionSubscriberIdWrapper(String subscriberId, int carrierId, String niddApn) {
+    public SatelliteSubscriberInfoWrapper(String subscriberId, int carrierId, String niddApn) {
         this.subscriberId = subscriberId;
         this.carrierId = carrierId;
         this.niddApn = niddApn;
@@ -66,7 +66,7 @@ public class ProvisionSubscriberIdWrapper {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        ProvisionSubscriberIdWrapper that = (ProvisionSubscriberIdWrapper) o;
+        SatelliteSubscriberInfoWrapper that = (SatelliteSubscriberInfoWrapper) o;
         return Objects.equals(subscriberId, that.subscriberId)
                 && carrierId == that.carrierId && Objects.equals(niddApn, that.niddApn);
     }
