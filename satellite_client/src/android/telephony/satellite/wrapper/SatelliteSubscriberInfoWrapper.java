@@ -16,33 +16,141 @@
 
 package android.telephony.satellite.wrapper;
 
+import android.annotation.FlaggedApi;
 import android.annotation.NonNull;
+import android.os.Parcel;
+import android.os.Parcelable;
+
+import com.android.internal.telephony.flags.Flags;
 
 import java.util.Objects;
 
-public class SatelliteSubscriberInfoWrapper {
-    @NonNull private final String subscriberId;
-    private int carrierId;
-    @NonNull private final String niddApn;
+@FlaggedApi(Flags.FLAG_CARRIER_ROAMING_NB_IOT_NTN)
+public class SatelliteSubscriberInfoWrapper implements Parcelable {
+    @NonNull private final String mSubscriberId;
+    @NonNull private final int mCarrierId;
+    @NonNull private final String mNiddApn;
 
-    public SatelliteSubscriberInfoWrapper(String subscriberId, int carrierId, String niddApn) {
-        this.subscriberId = subscriberId;
-        this.carrierId = carrierId;
-        this.niddApn = niddApn;
+    @FlaggedApi(Flags.FLAG_CARRIER_ROAMING_NB_IOT_NTN)
+    public SatelliteSubscriberInfoWrapper(@NonNull Builder builder) {
+        this.mSubscriberId = builder.mSubscriberId;
+        this.mCarrierId = builder.mCarrierId;
+        this.mNiddApn = builder.mNiddApn;
     }
 
+    /**
+     * Builder class for constructing SatelliteSubscriberInfoWrapper objects
+     *
+     * @hide
+     */
+    @FlaggedApi(Flags.FLAG_CARRIER_ROAMING_NB_IOT_NTN)
+    public static class Builder {
+        @NonNull private String mSubscriberId;
+        @NonNull private int mCarrierId;
+        @NonNull private String mNiddApn;
+
+        /**
+         * Set the SubscriberId and returns the Builder class.
+         *
+         * @hide
+         */
+        @FlaggedApi(Flags.FLAG_CARRIER_ROAMING_NB_IOT_NTN)
+        @NonNull
+        public Builder setSubscriberId(String subscriberId) {
+            mSubscriberId = subscriberId;
+            return this;
+        }
+
+        /**
+         * Set the CarrierId and returns the Builder class.
+         * @hide
+         */
+        @FlaggedApi(Flags.FLAG_CARRIER_ROAMING_NB_IOT_NTN)
+        @NonNull
+        public Builder setCarrierId(int carrierId) {
+            mCarrierId = carrierId;
+            return this;
+        }
+
+        /**
+         * Set the niddApn and returns the Builder class.
+         * @hide
+         */
+        @FlaggedApi(Flags.FLAG_CARRIER_ROAMING_NB_IOT_NTN)
+        @NonNull
+        public Builder setNiddApn(String niddApn) {
+            mNiddApn = niddApn;
+            return this;
+        }
+
+        /**
+         * Returns SatelliteSubscriberInfoWrapper object.
+         * @hide
+         */
+        @FlaggedApi(Flags.FLAG_CARRIER_ROAMING_NB_IOT_NTN)
+        @NonNull
+        public SatelliteSubscriberInfoWrapper build() {
+            return new SatelliteSubscriberInfoWrapper(this);
+        }
+    }
+
+    private SatelliteSubscriberInfoWrapper(Parcel in) {
+        mSubscriberId = in.readString();
+        mCarrierId = in.readInt();
+        mNiddApn = in.readString();
+    }
+
+    /**
+     * @hide
+     */
+    @Override
+    @FlaggedApi(Flags.FLAG_CARRIER_ROAMING_NB_IOT_NTN)
+    public void writeToParcel(@NonNull Parcel out, int flags) {
+        out.writeString(mSubscriberId);
+        out.writeInt(mCarrierId);
+        out.writeString(mNiddApn);
+    }
+
+    @FlaggedApi(Flags.FLAG_CARRIER_ROAMING_NB_IOT_NTN)
+    public static final @android.annotation.NonNull Creator<SatelliteSubscriberInfoWrapper>
+            CREATOR =
+            new Creator<SatelliteSubscriberInfoWrapper>() {
+                @Override
+                public SatelliteSubscriberInfoWrapper createFromParcel(Parcel in) {
+                    return new SatelliteSubscriberInfoWrapper(in);
+                }
+
+                @Override
+                public SatelliteSubscriberInfoWrapper[] newArray(int size) {
+                    return new SatelliteSubscriberInfoWrapper[size];
+                }
+            };
+
+    /**
+     * @hide
+     */
+    @Override
+    @FlaggedApi(Flags.FLAG_CARRIER_ROAMING_NB_IOT_NTN)
+    public int describeContents() {
+        return 0;
+    }
+
+    @FlaggedApi(Flags.FLAG_CARRIER_ROAMING_NB_IOT_NTN)
     @NonNull
     public String getSubscriberId() {
-        return subscriberId;
+        return mSubscriberId;
     }
 
+    @FlaggedApi(Flags.FLAG_CARRIER_ROAMING_NB_IOT_NTN)
+    @NonNull
     public int getCarrierId() {
-        return carrierId;
+        return mCarrierId;
     }
 
+    @FlaggedApi(Flags.FLAG_CARRIER_ROAMING_NB_IOT_NTN)
     @NonNull
     public String getNiddApn() {
-        return niddApn;
+        return mNiddApn;
     }
 
     @Override
@@ -50,29 +158,29 @@ public class SatelliteSubscriberInfoWrapper {
     public String toString() {
         StringBuilder sb = new StringBuilder();
         sb.append("SubscriberId:");
-        sb.append(subscriberId);
+        sb.append(mSubscriberId);
         sb.append(",");
 
         sb.append("carrierId:");
-        sb.append(carrierId);
+        sb.append(mCarrierId);
         sb.append(",");
 
         sb.append("niddApn:");
-        sb.append(niddApn);
+        sb.append(mNiddApn);
         return sb.toString();
     }
 
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (!(o instanceof SatelliteSubscriberInfoWrapper)) return false;
         SatelliteSubscriberInfoWrapper that = (SatelliteSubscriberInfoWrapper) o;
-        return Objects.equals(subscriberId, that.subscriberId)
-                && carrierId == that.carrierId && Objects.equals(niddApn, that.niddApn);
+        return Objects.equals(mSubscriberId, that.mSubscriberId)
+                && mCarrierId == that.mCarrierId && Objects.equals(mNiddApn, that.mNiddApn);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(subscriberId, carrierId, niddApn);
+        return Objects.hash(mSubscriberId, mCarrierId, mNiddApn);
     }
 }
