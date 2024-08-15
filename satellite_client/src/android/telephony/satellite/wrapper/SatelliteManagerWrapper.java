@@ -49,6 +49,7 @@ import android.telephony.satellite.SatelliteModemStateCallback;
 import android.telephony.satellite.SatelliteProvisionStateCallback;
 import android.telephony.satellite.SatelliteSessionStats;
 import android.telephony.satellite.SatelliteSubscriberInfo;
+import android.telephony.satellite.SatelliteSubscriberProvisionStatus;
 import android.telephony.satellite.SatelliteSupportedStateCallback;
 import android.telephony.satellite.SatelliteTransmissionUpdateCallback;
 
@@ -750,6 +751,13 @@ public class SatelliteManagerWrapper {
           @Override
           public void onSatelliteProvisionStateChanged(boolean provisioned) {
             callback.onSatelliteProvisionStateChanged(provisioned);
+          }
+
+          @Override
+          public void onSatelliteSubscriptionProvisionStateChanged(@NonNull
+          List<SatelliteSubscriberProvisionStatus> satelliteSubscriberProvisionStatus) {
+            callback.onSatelliteSubscriptionProvisionStateChanged(
+                    satelliteSubscriberProvisionStatus);
           }
         };
     sSatelliteProvisionStateCallbackWrapperMap.put(callback, internalCallback);
@@ -1470,9 +1478,10 @@ public class SatelliteManagerWrapper {
             new OutcomeReceiver<List<SatelliteSubscriberInfo>, SatelliteException>() {
               @Override
               public void onResult(List<SatelliteSubscriberInfo> result) {
-                callback.onResult(result.stream().map(ids -> new SatelliteSubscriberInfoWrapper(
-                        ids.getSubscriberId(), ids.getCarrierId(), ids.getNiddApn())).collect(
-                        Collectors.toList()));
+                callback.onResult(result.stream().map(info -> new SatelliteSubscriberInfoWrapper
+                        .Builder().setSubscriberId(info.getSubscriberId())
+                        .setCarrierId(info.getCarrierId()).setNiddApn(info.getNiddApn())
+                        .build()).collect(Collectors.toList()));
               }
 
               @Override
