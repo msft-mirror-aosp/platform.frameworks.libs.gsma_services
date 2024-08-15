@@ -757,7 +757,7 @@ public class SatelliteManagerWrapper {
           public void onSatelliteSubscriptionProvisionStateChanged(@NonNull
           List<SatelliteSubscriberProvisionStatus> satelliteSubscriberProvisionStatus) {
             callback.onSatelliteSubscriptionProvisionStateChanged(
-                    satelliteSubscriberProvisionStatus);
+                    transformToWrapperList(satelliteSubscriberProvisionStatus));
           }
         };
     sSatelliteProvisionStateCallbackWrapperMap.put(callback, internalCallback);
@@ -1545,6 +1545,24 @@ public class SatelliteManagerWrapper {
             .map(wrapper -> new SatelliteSubscriberInfo(wrapper.getSubscriberId(),
                     wrapper.getCarrierId(), wrapper.getNiddApn()))
             .collect(Collectors.toList()), executor, internalCallback);
+  }
+
+  private List<SatelliteSubscriberProvisionStatusWrapper> transformToWrapperList(
+          List<SatelliteSubscriberProvisionStatus> input) {
+    List<SatelliteSubscriberProvisionStatusWrapper> output = new ArrayList<>();
+    if (Flags.carrierRoamingNbIotNtn()) {
+      for (SatelliteSubscriberProvisionStatus status : input) {
+        SatelliteSubscriberInfo info = status.getSatelliteSubscriberInfo();
+        output.add(new SatelliteSubscriberProvisionStatusWrapper.Builder()
+                .setProvisionStatus(status.getProvisionStatus())
+                .setSatelliteSubscriberInfo(
+                        new SatelliteSubscriberInfoWrapper.Builder()
+                                .setSubscriberId(info.getSubscriberId())
+                                .setCarrierId(info.getCarrierId()).setNiddApn(info.getNiddApn())
+                                .build()).build());
+      }
+    }
+    return output;
   }
 
   @Nullable
