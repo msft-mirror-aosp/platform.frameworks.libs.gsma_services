@@ -16,6 +16,10 @@
 
 package android.telephony.satellite.wrapper;
 
+import android.annotation.NonNull;
+
+import java.util.List;
+
 /** A callback class for monitoring satellite provision state change events. */
 public interface SatelliteProvisionStateCallbackWrapper {
   /**
@@ -25,4 +29,13 @@ public interface SatelliteProvisionStateCallbackWrapper {
    *     false} means satellite is not provisioned.
    */
   void onSatelliteProvisionStateChanged(boolean provisioned);
+
+  /**
+   * Called when the provisioning state of one or more SatelliteSubscriberInfos changes.
+   *
+   * @param satelliteSubscriberProvisionStatus The list contains the latest provisioning states
+   *                                           of the SatelliteSubscriberInfos.
+   */
+  default void onSatelliteSubscriptionProvisionStateChanged(@NonNull
+        List<SatelliteSubscriberProvisionStatusWrapper> satelliteSubscriberProvisionStatus) {}
 }
