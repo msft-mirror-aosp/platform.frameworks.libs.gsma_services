@@ -48,6 +48,8 @@ import android.telephony.satellite.SatelliteManager;
 import android.telephony.satellite.SatelliteModemStateCallback;
 import android.telephony.satellite.SatelliteProvisionStateCallback;
 import android.telephony.satellite.SatelliteSessionStats;
+import android.telephony.satellite.SatelliteSubscriberInfo;
+import android.telephony.satellite.SatelliteSubscriberProvisionStatus;
 import android.telephony.satellite.SatelliteSupportedStateCallback;
 import android.telephony.satellite.SatelliteTransmissionUpdateCallback;
 
@@ -56,11 +58,13 @@ import com.android.telephony.Rlog;
 
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
+import java.lang.reflect.Method;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
@@ -102,8 +106,8 @@ public class SatelliteManagerWrapper {
           SatelliteSupportedStateCallbackWrapper, SatelliteSupportedStateCallback>
           sSatelliteSupportedStateCallbackWrapperMap = new ConcurrentHashMap<>();
 
-  private static final ConcurrentHashMap<
-          CarrierRoamingNtnModeListenerWrapper, TelephonyCallback.CarrierRoamingNtnModeListener>
+  private static final ConcurrentHashMap<CarrierRoamingNtnModeListenerWrapper,
+          CarrierRoamingNtnModeListener>
           sCarrierRoamingNtnModeListenerWrapperMap = new ConcurrentHashMap<>();
 
   private static final ConcurrentHashMap<SatelliteCommunicationAllowedStateCallbackWrapper,
@@ -154,6 +158,11 @@ public class SatelliteManagerWrapper {
    * is the last message to emergency service provider indicating no more help is needed.
    */
   public static final int DATAGRAM_TYPE_LAST_SOS_MESSAGE_NO_HELP_NEEDED = 5;
+  /**
+   * Datagram type indicating that the message to be sent or received is of type SMS.
+   */
+  public static final int DATAGRAM_TYPE_SMS = 6;
+
   /** @hide */
   @IntDef(
       prefix = "DATAGRAM_TYPE_",
@@ -163,7 +172,8 @@ public class SatelliteManagerWrapper {
               DATAGRAM_TYPE_LOCATION_SHARING,
               DATAGRAM_TYPE_KEEP_ALIVE,
               DATAGRAM_TYPE_LAST_SOS_MESSAGE_STILL_NEED_HELP,
-              DATAGRAM_TYPE_LAST_SOS_MESSAGE_NO_HELP_NEEDED
+              DATAGRAM_TYPE_LAST_SOS_MESSAGE_NO_HELP_NEEDED,
+              DATAGRAM_TYPE_SMS
       })
   @Retention(RetentionPolicy.SOURCE)
   public @interface DatagramType {}
@@ -393,6 +403,28 @@ public class SatelliteManagerWrapper {
   public static final int SATELLITE_RESULT_MODEM_BUSY = 22;
   /** Telephony process is not currently available or satellite is not supported. */
   public static final int SATELLITE_RESULT_ILLEGAL_STATE = 23;
+  /**
+   * Telephony framework timeout to receive ACK or response from the satellite modem after
+   * sending a request to the modem.
+   */
+  public static final int SATELLITE_RESULT_MODEM_TIMEOUT = 24;
+
+  /**
+   * Telephony framework needs to access the current location of the device to perform the
+   * request. However, location in the settings is disabled by users.
+   */
+  public static final int SATELLITE_RESULT_LOCATION_DISABLED = 25;
+
+  /**
+   * Telephony framework needs to access the current location of the device to perform the
+   * request. However, Telephony fails to fetch the current location from location service.
+   */
+  public static final int SATELLITE_RESULT_LOCATION_NOT_AVAILABLE = 26;
+
+  /**
+   * Emergency call is in progress.
+   */
+  public static final int SATELLITE_RESULT_EMERGENCY_CALL_IN_PROGRESS = 27;
 
   /** @hide */
   @IntDef(
@@ -421,7 +453,11 @@ public class SatelliteManagerWrapper {
         SATELLITE_RESULT_NOT_SUPPORTED,
         SATELLITE_RESULT_REQUEST_IN_PROGRESS,
         SATELLITE_RESULT_MODEM_BUSY,
-        SATELLITE_RESULT_ILLEGAL_STATE
+        SATELLITE_RESULT_ILLEGAL_STATE,
+        SATELLITE_RESULT_MODEM_TIMEOUT,
+        SATELLITE_RESULT_LOCATION_DISABLED,
+        SATELLITE_RESULT_LOCATION_NOT_AVAILABLE,
+        SATELLITE_RESULT_EMERGENCY_CALL_IN_PROGRESS
       })
   @Retention(RetentionPolicy.SOURCE)
   public @interface SatelliteResult {}
@@ -717,6 +753,13 @@ public class SatelliteManagerWrapper {
           public void onSatelliteProvisionStateChanged(boolean provisioned) {
             callback.onSatelliteProvisionStateChanged(provisioned);
           }
+
+          @Override
+          public void onSatelliteSubscriptionProvisionStateChanged(@NonNull
+          List<SatelliteSubscriberProvisionStatus> satelliteSubscriberProvisionStatus) {
+            callback.onSatelliteSubscriptionProvisionStateChanged(
+                    transformToWrapperList(satelliteSubscriberProvisionStatus));
+          }
         };
     sSatelliteProvisionStateCallbackWrapperMap.put(callback, internalCallback);
     int result =
@@ -765,6 +808,10 @@ public class SatelliteManagerWrapper {
         new SatelliteModemStateCallback() {
           public void onSatelliteModemStateChanged(@SatelliteModemState int state) {
             callback.onSatelliteModemStateChanged(state);
+          }
+
+          public void onEmergencyModeChanged(boolean isEmergency) {
+            callback.onEmergencyModeChanged(isEmergency);
           }
         };
     sSatelliteModemStateCallbackWrapperMap.put(callback, internalCallback);
@@ -823,31 +870,49 @@ public class SatelliteManagerWrapper {
     }
   }
 
+  private class CarrierRoamingNtnModeListener extends TelephonyCallback
+          implements TelephonyCallback.CarrierRoamingNtnModeListener {
+
+    private CarrierRoamingNtnModeListenerWrapper mListenerWrapper;
+
+    public CarrierRoamingNtnModeListener(CarrierRoamingNtnModeListenerWrapper listenerWrapper) {
+      mListenerWrapper = listenerWrapper;
+    }
+
+    @Override
+    public void onCarrierRoamingNtnModeChanged(boolean active) {
+      logd("onCarrierRoamingNtnModeChanged: active=" + active);
+      mListenerWrapper.onCarrierRoamingNtnModeChanged(active);
+    }
+
+    @Override
+    public void onCarrierRoamingNtnEligibleStateChanged(boolean eligible) {
+      logd("onCarrierRoamingNtnEligibleStateChanged: eligible=" + eligible);
+      mListenerWrapper.onCarrierRoamingNtnEligibleStateChanged(eligible);
+    }
+  }
+
   /** Register for carrier roaming non-terrestrial network mode changes. */
   public void registerForCarrierRoamingNtnModeChanged(int subId,
           @NonNull @CallbackExecutor Executor executor,
           @NonNull CarrierRoamingNtnModeListenerWrapper listener) {
-    TelephonyCallback.CarrierRoamingNtnModeListener internalListener = new TelephonyCallback
-            .CarrierRoamingNtnModeListener() {
-      @Override
-      public void onCarrierRoamingNtnModeChanged(boolean active) {
-        listener.onCarrierRoamingNtnModeChanged(active);
-      }
-    };
+    logd("registerForCarrierRoamingNtnModeChanged: subId=" + subId);
+    CarrierRoamingNtnModeListener internalListener = new CarrierRoamingNtnModeListener(listener);
     sCarrierRoamingNtnModeListenerWrapperMap.put(listener, internalListener);
 
     TelephonyManager tm = mTelephonyManager.createForSubscriptionId(subId);
-    tm.registerTelephonyCallback(executor, (TelephonyCallback) internalListener);
+    tm.registerTelephonyCallback(executor, internalListener);
   }
 
   /** Unregister for carrier roaming non-terrestrial network mode changes. */
   public void unregisterForCarrierRoamingNtnModeChanged(int subId,
           @NonNull CarrierRoamingNtnModeListenerWrapper listener) {
-    TelephonyCallback.CarrierRoamingNtnModeListener internalListener =
+    logd("unregisterForCarrierRoamingNtnModeChanged: subId=" + subId);
+    CarrierRoamingNtnModeListener internalListener =
             sCarrierRoamingNtnModeListenerWrapperMap.get(listener);
     if (internalListener != null) {
       TelephonyManager tm = mTelephonyManager.createForSubscriptionId(subId);
-      tm.unregisterTelephonyCallback((TelephonyCallback) internalListener);
+      tm.unregisterTelephonyCallback(internalListener);
     }
   }
 
@@ -1365,6 +1430,127 @@ public class SatelliteManagerWrapper {
             sSatelliteCommunicationAllowedStateCallbackWrapperMap.get(callback);
     if (internalCallback != null) {
       mSatelliteManager.unregisterForCommunicationAllowedStateChanged(internalCallback);
+    }
+  }
+
+  /**
+   * Wrapper API to provide a way to check if the subscription is capable for non-terrestrial
+   * networks for the carrier.
+   *
+   * @param subId The unique SubscriptionInfo key in database.
+   * @return {@code true} if it is a non-terrestrial network capable subscription,
+   * {@code false} otherwise.
+   * Note: The method returns {@code false} if the parameter is invalid or any other error occurs.
+   */
+  @FlaggedApi(Flags.FLAG_CARRIER_ROAMING_NB_IOT_NTN)
+  public boolean isSatelliteESOSSupportedSubscription(int subId) {
+    if (!mSubscriptionManager.isValidSubscriptionId(subId)) {
+      return false;
+    }
+
+    List<SubscriptionInfo> subInfoList = mSubscriptionManager.getAvailableSubscriptionInfoList();
+    for (SubscriptionInfo subInfo : subInfoList) {
+      if (subInfo.getSubscriptionId() == subId) {
+        logd("found matched subscription info");
+        return subInfo.isSatelliteESOSSupported();
+      }
+    }
+    logd("failed to found matched subscription info");
+    return false;
+  }
+
+  /**
+   * Request to get list of prioritized satellite subscriber ids to be used for provision.
+   *
+   * @param executor, The executor on which the callback will be called.
+   * @param callback, The callback object to which the result will be delivered.
+   * If successful, the callback returns a list of subscriberIds sorted in ascending priority
+   * order index 0 has the highest priority. Otherwise, it returns an error with a
+   * SatelliteException.
+   */
+  @FlaggedApi(Flags.FLAG_CARRIER_ROAMING_NB_IOT_NTN)
+  public void requestSatelliteSubscriberProvisionStatus(
+          @NonNull @CallbackExecutor Executor executor,
+          @NonNull OutcomeReceiver<List<SatelliteSubscriberProvisionStatusWrapper>,
+                  SatelliteExceptionWrapper> callback) {
+    Objects.requireNonNull(executor);
+    Objects.requireNonNull(callback);
+
+    OutcomeReceiver internalCallback =
+            new OutcomeReceiver<List<SatelliteSubscriberProvisionStatus>, SatelliteException>() {
+              @Override
+              public void onResult(List<SatelliteSubscriberProvisionStatus> result) {
+                callback.onResult(transformToWrapperList(result));
+              }
+
+              @Override
+              public void onError(SatelliteException exception) {
+                callback.onError(new SatelliteExceptionWrapper(exception.getErrorCode()));
+              }
+            };
+    mSatelliteManager.requestSatelliteSubscriberProvisionStatus(executor, internalCallback);
+  }
+
+  /**
+   * Deliver the list of provisioned satellite subscriber ids.
+   *
+   * @param list List of SatelliteSubscriberInfo.
+   * @param executor The executor on which the callback will be called.
+   * @param callback The callback object to which the result will be delivered.
+   */
+  @FlaggedApi(Flags.FLAG_CARRIER_ROAMING_NB_IOT_NTN)
+  public void provisionSatellite(@NonNull List<SatelliteSubscriberInfoWrapper> list,
+          @NonNull @CallbackExecutor Executor executor,
+          @NonNull OutcomeReceiver<Boolean, SatelliteExceptionWrapper> callback) {
+    OutcomeReceiver internalCallback =
+            new OutcomeReceiver<Boolean, SatelliteException>() {
+              @Override
+              public void onResult(Boolean result) {
+                callback.onResult(result);
+              }
+
+              @Override
+              public void onError(SatelliteException exception) {
+                callback.onError(new SatelliteExceptionWrapper(exception.getErrorCode()));
+              }
+            };
+    mSatelliteManager.provisionSatellite(list.stream()
+            .map(info -> new SatelliteSubscriberInfo.Builder()
+                    .setSubscriberId(info.getSubscriberId())
+                    .setCarrierId(info.getCarrierId()).setNiddApn(info.getNiddApn())
+                    .setSubId(info.getSubId()).setSubscriberIdType(info.getSubscriberIdType())
+                    .build())
+            .collect(Collectors.toList()), executor, internalCallback);
+  }
+
+  private List<SatelliteSubscriberProvisionStatusWrapper> transformToWrapperList(
+          List<SatelliteSubscriberProvisionStatus> input) {
+    List<SatelliteSubscriberProvisionStatusWrapper> output = new ArrayList<>();
+    if (Flags.carrierRoamingNbIotNtn()) {
+      for (SatelliteSubscriberProvisionStatus status : input) {
+        SatelliteSubscriberInfo info = status.getSatelliteSubscriberInfo();
+        output.add(new SatelliteSubscriberProvisionStatusWrapper.Builder()
+                .setProvisionStatus(status.getProvisionStatus())
+                .setSatelliteSubscriberInfo(
+                        new SatelliteSubscriberInfoWrapper.Builder()
+                                .setSubscriberId(info.getSubscriberId())
+                                .setCarrierId(info.getCarrierId()).setNiddApn(info.getNiddApn())
+                                .setSubId(info.getSubId())
+                                .setSubscriberIdType(info.getSubscriberIdType())
+                                .build()).build());
+      }
+    }
+    return output;
+  }
+
+  public boolean isSatelliteSubscriberIdSupported() {
+    try {
+      final String methodName = "requestSatelliteSubscriberProvisioningStatus";
+      Method method = mSatelliteManager.getClass().getMethod(methodName, Executor.class,
+              OutcomeReceiver.class);
+      return method != null;
+    } catch (NoSuchMethodException e) {
+      return false;
     }
   }
 

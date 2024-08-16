@@ -25,4 +25,11 @@ public interface SatelliteModemStateCallbackWrapper {
    * @param state The new satellite modem state.
    */
   void onSatelliteModemStateChanged(@SatelliteManagerWrapper.SatelliteModemState int state);
+
+  /**
+   * Called when the satellite emergency mode has changed.
+   *
+   * @param isEmergency {@code true} enabled for emergency mode, {@code false} otherwise.
+   */
+  default void onEmergencyModeChanged(boolean isEmergency) {};
 }
