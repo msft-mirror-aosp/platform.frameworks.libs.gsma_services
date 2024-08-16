@@ -17,7 +17,6 @@
 package android.telephony.satellite.wrapper;
 
 import android.annotation.NonNull;
-import android.telephony.satellite.SatelliteSubscriberProvisionStatus;
 
 import java.util.List;
 
@@ -38,5 +37,5 @@ public interface SatelliteProvisionStateCallbackWrapper {
    *                                           of the SatelliteSubscriberInfos.
    */
   default void onSatelliteSubscriptionProvisionStateChanged(@NonNull
-        List<SatelliteSubscriberProvisionStatus> satelliteSubscriberProvisionStatus) {}
+        List<SatelliteSubscriberProvisionStatusWrapper> satelliteSubscriberProvisionStatus) {}
 }
