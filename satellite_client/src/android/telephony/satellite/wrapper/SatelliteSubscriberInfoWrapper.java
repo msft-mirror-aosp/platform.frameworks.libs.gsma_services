@@ -17,12 +17,15 @@
 package android.telephony.satellite.wrapper;
 
 import android.annotation.FlaggedApi;
+import android.annotation.IntDef;
 import android.annotation.NonNull;
 import android.os.Parcel;
 import android.os.Parcelable;
 
 import com.android.internal.telephony.flags.Flags;
 
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
 import java.util.Objects;
 
 @FlaggedApi(Flags.FLAG_CARRIER_ROAMING_NB_IOT_NTN)
@@ -30,12 +33,35 @@ public class SatelliteSubscriberInfoWrapper implements Parcelable {
     @NonNull private final String mSubscriberId;
     @NonNull private final int mCarrierId;
     @NonNull private final String mNiddApn;
+    @NonNull private int mSubId;
+
+    /** SubscriberId format is the ICCID. */
+    @FlaggedApi(Flags.FLAG_OEM_ENABLED_SATELLITE_FLAG)
+    public static final int ICCID = 0;
+    /** SubscriberId format is the 6 digit of IMSI + MSISDN. */
+    @FlaggedApi(Flags.FLAG_OEM_ENABLED_SATELLITE_FLAG)
+    public static final int IMSI_MSISDN = 1;
+
+    /** Type of subscriber id */
+    @SubscriberIdType
+    @NonNull private int mSubscriberIdType;
+
+    /** @hide */
+    @IntDef(prefix = "SubscriberId_Type_", value = {
+            ICCID,
+            IMSI_MSISDN
+    })
+    @Retention(RetentionPolicy.SOURCE)
+    public @interface SubscriberIdType {
+    }
 
     @FlaggedApi(Flags.FLAG_CARRIER_ROAMING_NB_IOT_NTN)
     public SatelliteSubscriberInfoWrapper(@NonNull Builder builder) {
         this.mSubscriberId = builder.mSubscriberId;
         this.mCarrierId = builder.mCarrierId;
         this.mNiddApn = builder.mNiddApn;
+        this.mSubId = builder.mSubId;
+        this.mSubscriberIdType = builder.mSubscriberIdType;
     }
 
     /**
@@ -48,6 +74,8 @@ public class SatelliteSubscriberInfoWrapper implements Parcelable {
         @NonNull private String mSubscriberId;
         @NonNull private int mCarrierId;
         @NonNull private String mNiddApn;
+        @NonNull private int mSubId;
+        @NonNull @SubscriberIdType private int mSubscriberIdType;
 
         /**
          * Set the SubscriberId and returns the Builder class.
@@ -84,6 +112,28 @@ public class SatelliteSubscriberInfoWrapper implements Parcelable {
         }
 
         /**
+         * Set the subId and returns the Builder class.
+         * @hide
+         */
+        @FlaggedApi(Flags.FLAG_CARRIER_ROAMING_NB_IOT_NTN)
+        @NonNull
+        public Builder setSubId(int subId) {
+            mSubId = subId;
+            return this;
+        }
+
+        /**
+         * Set the SubscriberIdType and returns the Builder class.
+         * @hide
+         */
+        @FlaggedApi(Flags.FLAG_CARRIER_ROAMING_NB_IOT_NTN)
+        @NonNull
+        public Builder setSubscriberIdType(@SubscriberIdType int subscriberIdType) {
+            mSubscriberIdType = subscriberIdType;
+            return this;
+        }
+
+        /**
          * Returns SatelliteSubscriberInfoWrapper object.
          * @hide
          */
@@ -98,6 +148,8 @@ public class SatelliteSubscriberInfoWrapper implements Parcelable {
         mSubscriberId = in.readString();
         mCarrierId = in.readInt();
         mNiddApn = in.readString();
+        mSubId = in.readInt();
+        mSubscriberIdType = in.readInt();
     }
 
     /**
@@ -109,6 +161,8 @@ public class SatelliteSubscriberInfoWrapper implements Parcelable {
         out.writeString(mSubscriberId);
         out.writeInt(mCarrierId);
         out.writeString(mNiddApn);
+        out.writeInt(mSubId);
+        out.writeInt(mSubscriberIdType);
     }
 
     @FlaggedApi(Flags.FLAG_CARRIER_ROAMING_NB_IOT_NTN)
@@ -153,6 +207,18 @@ public class SatelliteSubscriberInfoWrapper implements Parcelable {
         return mNiddApn;
     }
 
+    @FlaggedApi(Flags.FLAG_CARRIER_ROAMING_NB_IOT_NTN)
+    @NonNull
+    public int getSubId() {
+        return mSubId;
+    }
+
+    @FlaggedApi(Flags.FLAG_CARRIER_ROAMING_NB_IOT_NTN)
+    @NonNull
+    public @SubscriberIdType int getSubscriberIdType() {
+        return mSubscriberIdType;
+    }
+
     @Override
     @NonNull
     public String toString() {
@@ -167,6 +233,14 @@ public class SatelliteSubscriberInfoWrapper implements Parcelable {
 
         sb.append("niddApn:");
         sb.append(mNiddApn);
+        sb.append(",");
+
+        sb.append("SubId:");
+        sb.append(mSubId);
+        sb.append(",");
+
+        sb.append("SubscriberIdType:");
+        sb.append(mSubscriberIdType);
         return sb.toString();
     }
 
@@ -176,11 +250,12 @@ public class SatelliteSubscriberInfoWrapper implements Parcelable {
         if (!(o instanceof SatelliteSubscriberInfoWrapper)) return false;
         SatelliteSubscriberInfoWrapper that = (SatelliteSubscriberInfoWrapper) o;
         return Objects.equals(mSubscriberId, that.mSubscriberId)
-                && mCarrierId == that.mCarrierId && Objects.equals(mNiddApn, that.mNiddApn);
+                && mCarrierId == that.mCarrierId && Objects.equals(mNiddApn, that.mNiddApn)
+                && mSubId == that.mSubId && mSubscriberIdType == that.mSubscriberIdType;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(mSubscriberId, mCarrierId, mNiddApn);
+        return Objects.hash(mSubscriberId, mCarrierId, mNiddApn, mSubId, mSubscriberIdType);
     }
 }
