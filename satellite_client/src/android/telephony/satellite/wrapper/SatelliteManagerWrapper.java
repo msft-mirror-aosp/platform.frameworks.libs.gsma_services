@@ -49,6 +49,7 @@ import android.telephony.satellite.SatelliteModemStateCallback;
 import android.telephony.satellite.SatelliteProvisionStateCallback;
 import android.telephony.satellite.SatelliteSessionStats;
 import android.telephony.satellite.SatelliteSubscriberInfo;
+import android.telephony.satellite.SatelliteSubscriberProvisionStatus;
 import android.telephony.satellite.SatelliteSupportedStateCallback;
 import android.telephony.satellite.SatelliteTransmissionUpdateCallback;
 
@@ -57,6 +58,7 @@ import com.android.telephony.Rlog;
 
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
+import java.lang.reflect.Method;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -750,6 +752,13 @@ public class SatelliteManagerWrapper {
           @Override
           public void onSatelliteProvisionStateChanged(boolean provisioned) {
             callback.onSatelliteProvisionStateChanged(provisioned);
+          }
+
+          @Override
+          public void onSatelliteSubscriptionProvisionStateChanged(@NonNull
+          List<SatelliteSubscriberProvisionStatus> satelliteSubscriberProvisionStatus) {
+            callback.onSatelliteSubscriptionProvisionStateChanged(
+                    transformToWrapperList(satelliteSubscriberProvisionStatus));
           }
         };
     sSatelliteProvisionStateCallbackWrapperMap.put(callback, internalCallback);
@@ -1460,19 +1469,18 @@ public class SatelliteManagerWrapper {
    * SatelliteException.
    */
   @FlaggedApi(Flags.FLAG_CARRIER_ROAMING_NB_IOT_NTN)
-  public void requestProvisionSubscriberIds(@NonNull @CallbackExecutor Executor executor,
-          @NonNull OutcomeReceiver<List<SatelliteSubscriberInfoWrapper>,
-          SatelliteExceptionWrapper> callback) {
+  public void requestSatelliteSubscriberProvisionStatus(
+          @NonNull @CallbackExecutor Executor executor,
+          @NonNull OutcomeReceiver<List<SatelliteSubscriberProvisionStatusWrapper>,
+                  SatelliteExceptionWrapper> callback) {
     Objects.requireNonNull(executor);
     Objects.requireNonNull(callback);
 
     OutcomeReceiver internalCallback =
-            new OutcomeReceiver<List<SatelliteSubscriberInfo>, SatelliteException>() {
+            new OutcomeReceiver<List<SatelliteSubscriberProvisionStatus>, SatelliteException>() {
               @Override
-              public void onResult(List<SatelliteSubscriberInfo> result) {
-                callback.onResult(result.stream().map(ids -> new SatelliteSubscriberInfoWrapper(
-                        ids.getSubscriberId(), ids.getCarrierId(), ids.getNiddApn())).collect(
-                        Collectors.toList()));
+              public void onResult(List<SatelliteSubscriberProvisionStatus> result) {
+                callback.onResult(transformToWrapperList(result));
               }
 
               @Override
@@ -1480,33 +1488,7 @@ public class SatelliteManagerWrapper {
                 callback.onError(new SatelliteExceptionWrapper(exception.getErrorCode()));
               }
             };
-    mSatelliteManager.requestProvisionSubscriberIds(executor, internalCallback);
-  }
-
-  /**
-   * Request to get provisioned status for given a satellite subscriber id.
-   *
-   * @param satelliteSubscriberId Satellite subscriber id requiring provisioned status check.
-   * @param executor The executor on which the callback will be called.
-   * @param callback The callback object to which the result will be delivered.
-   */
-  @FlaggedApi(Flags.FLAG_CARRIER_ROAMING_NB_IOT_NTN)
-  public void requestIsProvisioned(@NonNull String satelliteSubscriberId,
-          @NonNull @CallbackExecutor Executor executor,
-          @NonNull OutcomeReceiver<Boolean, SatelliteExceptionWrapper> callback) {
-    OutcomeReceiver internalCallback =
-            new OutcomeReceiver<Boolean, SatelliteException>() {
-              @Override
-              public void onResult(Boolean result) {
-                callback.onResult(result);
-              }
-
-              @Override
-              public void onError(SatelliteException exception) {
-                callback.onError(new SatelliteExceptionWrapper(exception.getErrorCode()));
-              }
-            };
-    mSatelliteManager.requestIsProvisioned(satelliteSubscriberId, executor, internalCallback);
+    mSatelliteManager.requestSatelliteSubscriberProvisionStatus(executor, internalCallback);
   }
 
   /**
@@ -1533,9 +1515,43 @@ public class SatelliteManagerWrapper {
               }
             };
     mSatelliteManager.provisionSatellite(list.stream()
-            .map(wrapper -> new SatelliteSubscriberInfo(wrapper.getSubscriberId(),
-                    wrapper.getCarrierId(), wrapper.getNiddApn()))
+            .map(info -> new SatelliteSubscriberInfo.Builder()
+                    .setSubscriberId(info.getSubscriberId())
+                    .setCarrierId(info.getCarrierId()).setNiddApn(info.getNiddApn())
+                    .setSubId(info.getSubId()).setSubscriberIdType(info.getSubscriberIdType())
+                    .build())
             .collect(Collectors.toList()), executor, internalCallback);
+  }
+
+  private List<SatelliteSubscriberProvisionStatusWrapper> transformToWrapperList(
+          List<SatelliteSubscriberProvisionStatus> input) {
+    List<SatelliteSubscriberProvisionStatusWrapper> output = new ArrayList<>();
+    if (Flags.carrierRoamingNbIotNtn()) {
+      for (SatelliteSubscriberProvisionStatus status : input) {
+        SatelliteSubscriberInfo info = status.getSatelliteSubscriberInfo();
+        output.add(new SatelliteSubscriberProvisionStatusWrapper.Builder()
+                .setProvisionStatus(status.getProvisionStatus())
+                .setSatelliteSubscriberInfo(
+                        new SatelliteSubscriberInfoWrapper.Builder()
+                                .setSubscriberId(info.getSubscriberId())
+                                .setCarrierId(info.getCarrierId()).setNiddApn(info.getNiddApn())
+                                .setSubId(info.getSubId())
+                                .setSubscriberIdType(info.getSubscriberIdType())
+                                .build()).build());
+      }
+    }
+    return output;
+  }
+
+  public boolean isSatelliteSubscriberIdSupported() {
+    try {
+      final String methodName = "requestSatelliteSubscriberProvisioningStatus";
+      Method method = mSatelliteManager.getClass().getMethod(methodName, Executor.class,
+              OutcomeReceiver.class);
+      return method != null;
+    } catch (NoSuchMethodException e) {
+      return false;
+    }
   }
 
   @Nullable
