@@ -1545,7 +1545,7 @@ public class SatelliteManagerWrapper {
 
   public boolean isSatelliteSubscriberIdSupported() {
     try {
-      final String methodName = "requestSatelliteSubscriberProvisioningStatus";
+      final String methodName = "requestSatelliteSubscriberProvisionStatus";
       Method method = mSatelliteManager.getClass().getMethod(methodName, Executor.class,
               OutcomeReceiver.class);
       return method != null;
