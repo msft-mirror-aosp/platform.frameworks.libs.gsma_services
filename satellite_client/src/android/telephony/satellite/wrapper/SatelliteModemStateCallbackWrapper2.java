@@ -1,4 +1,4 @@
-/*
+  /*
  * Copyright (C) 2023 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -17,7 +17,7 @@
 package android.telephony.satellite.wrapper;
 
 /** A callback class for monitoring satellite modem state change events. */
-public interface SatelliteModemStateCallbackWrapper {
+public interface SatelliteModemStateCallbackWrapper2 {
 
   /**
    * Called when satellite modem state changes.
@@ -25,4 +25,11 @@ public interface SatelliteModemStateCallbackWrapper {
    * @param state The new satellite modem state.
    */
   void onSatelliteModemStateChanged(@SatelliteManagerWrapper.SatelliteModemState int state);
+
+  /**
+   * Called when the satellite emergency mode has changed.
+   *
+   * @param isEmergency {@code true} enabled for emergency mode, {@code false} otherwise.
+   */
+  default void onEmergencyModeChanged(boolean isEmergency) {};
 }
