@@ -90,6 +90,10 @@ public class SatelliteManagerWrapper {
           SatelliteModemStateCallback> sSatelliteModemStateCallbackWrapperMap =
           new ConcurrentHashMap<>();
 
+  private static final ConcurrentHashMap<SatelliteModemStateCallbackWrapper2,
+          SatelliteModemStateCallback> sSatelliteModemStateCallbackWrapperMap2 =
+          new ConcurrentHashMap<>();
+
   private static final ConcurrentHashMap<
           SatelliteTransmissionUpdateCallbackWrapper, SatelliteTransmissionUpdateCallback>
       sSatelliteTransmissionUpdateCallbackWrapperMap = new ConcurrentHashMap<>();
@@ -109,6 +113,10 @@ public class SatelliteManagerWrapper {
   private static final ConcurrentHashMap<CarrierRoamingNtnModeListenerWrapper,
           CarrierRoamingNtnModeListener>
           sCarrierRoamingNtnModeListenerWrapperMap = new ConcurrentHashMap<>();
+
+  private static final ConcurrentHashMap<CarrierRoamingNtnModeListenerWrapper2,
+          CarrierRoamingNtnModeListener>
+          sCarrierRoamingNtnModeListenerWrapperMap2 = new ConcurrentHashMap<>();
 
   private static final ConcurrentHashMap<SatelliteCommunicationAllowedStateCallbackWrapper,
           SatelliteCommunicationAllowedStateCallback>
@@ -809,15 +817,33 @@ public class SatelliteManagerWrapper {
           public void onSatelliteModemStateChanged(@SatelliteModemState int state) {
             callback.onSatelliteModemStateChanged(state);
           }
-
-          public void onEmergencyModeChanged(boolean isEmergency) {
-            callback.onEmergencyModeChanged(isEmergency);
-          }
         };
     sSatelliteModemStateCallbackWrapperMap.put(callback, internalCallback);
 
     int result =
         mSatelliteManager.registerForModemStateChanged(executor, internalCallback);
+    return result;
+  }
+
+  /** Registers for modem state changed from satellite modem. */
+  @SatelliteResult
+  public int registerForModemStateChanged(
+          @NonNull @CallbackExecutor Executor executor,
+          @NonNull SatelliteModemStateCallbackWrapper2 callback) {
+    SatelliteModemStateCallback internalCallback =
+            new SatelliteModemStateCallback() {
+              public void onSatelliteModemStateChanged(@SatelliteModemState int state) {
+                callback.onSatelliteModemStateChanged(state);
+              }
+
+              public void onEmergencyModeChanged(boolean isEmergency) {
+                callback.onEmergencyModeChanged(isEmergency);
+              }
+            };
+    sSatelliteModemStateCallbackWrapperMap2.put(callback, internalCallback);
+
+    int result =
+            mSatelliteManager.registerForModemStateChanged(executor, internalCallback);
     return result;
   }
 
@@ -828,6 +854,19 @@ public class SatelliteManagerWrapper {
   public void unregisterForModemStateChanged(
       @NonNull SatelliteModemStateCallbackWrapper callback) {
     SatelliteModemStateCallback internalCallback = sSatelliteModemStateCallbackWrapperMap.get(
+            callback);
+    if (internalCallback != null) {
+      mSatelliteManager.unregisterForModemStateChanged(internalCallback);
+    }
+  }
+
+  /**
+   * Unregisters for modem state changed from satellite modem. If callback was not registered
+   * before, the request will be ignored.
+   */
+  public void unregisterForModemStateChanged(
+          @NonNull SatelliteModemStateCallbackWrapper2 callback) {
+    SatelliteModemStateCallback internalCallback = sSatelliteModemStateCallbackWrapperMap2.get(
             callback);
     if (internalCallback != null) {
       mSatelliteManager.unregisterForModemStateChanged(internalCallback);
@@ -874,21 +913,34 @@ public class SatelliteManagerWrapper {
           implements TelephonyCallback.CarrierRoamingNtnModeListener {
 
     private CarrierRoamingNtnModeListenerWrapper mListenerWrapper;
+    private CarrierRoamingNtnModeListenerWrapper2 mListenerWrapper2;
 
     public CarrierRoamingNtnModeListener(CarrierRoamingNtnModeListenerWrapper listenerWrapper) {
       mListenerWrapper = listenerWrapper;
+      mListenerWrapper2 = null;
+    }
+
+    public CarrierRoamingNtnModeListener(CarrierRoamingNtnModeListenerWrapper2 listenerWrapper) {
+      mListenerWrapper = null;
+      mListenerWrapper2 = listenerWrapper;
     }
 
     @Override
     public void onCarrierRoamingNtnModeChanged(boolean active) {
       logd("onCarrierRoamingNtnModeChanged: active=" + active);
-      mListenerWrapper.onCarrierRoamingNtnModeChanged(active);
+      if (mListenerWrapper2 != null) {
+        mListenerWrapper2.onCarrierRoamingNtnModeChanged(active);
+      } else if (mListenerWrapper != null) {
+        mListenerWrapper.onCarrierRoamingNtnModeChanged(active);
+      }
     }
 
     @Override
     public void onCarrierRoamingNtnEligibleStateChanged(boolean eligible) {
       logd("onCarrierRoamingNtnEligibleStateChanged: eligible=" + eligible);
-      mListenerWrapper.onCarrierRoamingNtnEligibleStateChanged(eligible);
+      if (mListenerWrapper2 != null) {
+        mListenerWrapper2.onCarrierRoamingNtnEligibleStateChanged(eligible);
+      }
     }
   }
 
@@ -904,9 +956,32 @@ public class SatelliteManagerWrapper {
     tm.registerTelephonyCallback(executor, internalListener);
   }
 
+  public void registerForCarrierRoamingNtnModeChanged(int subId,
+          @NonNull @CallbackExecutor Executor executor,
+          @NonNull CarrierRoamingNtnModeListenerWrapper2 listener) {
+    logd("registerForCarrierRoamingNtnModeChanged: subId=" + subId);
+    CarrierRoamingNtnModeListener internalListener = new CarrierRoamingNtnModeListener(listener);
+    sCarrierRoamingNtnModeListenerWrapperMap2.put(listener, internalListener);
+
+    TelephonyManager tm = mTelephonyManager.createForSubscriptionId(subId);
+    tm.registerTelephonyCallback(executor, internalListener);
+  }
+
   /** Unregister for carrier roaming non-terrestrial network mode changes. */
   public void unregisterForCarrierRoamingNtnModeChanged(int subId,
           @NonNull CarrierRoamingNtnModeListenerWrapper listener) {
+    logd("unregisterForCarrierRoamingNtnModeChanged: subId=" + subId);
+    CarrierRoamingNtnModeListener internalListener =
+            sCarrierRoamingNtnModeListenerWrapperMap.get(listener);
+    if (internalListener != null) {
+      TelephonyManager tm = mTelephonyManager.createForSubscriptionId(subId);
+      tm.unregisterTelephonyCallback(internalListener);
+    }
+  }
+
+  /** Unregister for carrier roaming non-terrestrial network mode changes. */
+  public void unregisterForCarrierRoamingNtnModeChanged(int subId,
+          @NonNull CarrierRoamingNtnModeListenerWrapper2 listener) {
     logd("unregisterForCarrierRoamingNtnModeChanged: subId=" + subId);
     CarrierRoamingNtnModeListener internalListener =
             sCarrierRoamingNtnModeListenerWrapperMap.get(listener);
@@ -1545,7 +1620,7 @@ public class SatelliteManagerWrapper {
 
   public boolean isSatelliteSubscriberIdSupported() {
     try {
-      final String methodName = "requestSatelliteSubscriberProvisioningStatus";
+      final String methodName = "requestSatelliteSubscriberProvisionStatus";
       Method method = mSatelliteManager.getClass().getMethod(methodName, Executor.class,
               OutcomeReceiver.class);
       return method != null;
