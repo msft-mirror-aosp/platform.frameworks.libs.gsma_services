@@ -102,8 +102,8 @@ public class SatelliteManagerWrapper {
           SatelliteSupportedStateCallbackWrapper, SatelliteSupportedStateCallback>
           sSatelliteSupportedStateCallbackWrapperMap = new ConcurrentHashMap<>();
 
-  private static final ConcurrentHashMap<CarrierRoamingNtnModeListenerWrapper,
-          CarrierRoamingNtnModeListener>
+  private static final ConcurrentHashMap<
+          CarrierRoamingNtnModeListenerWrapper, TelephonyCallback.CarrierRoamingNtnModeListener>
           sCarrierRoamingNtnModeListenerWrapperMap = new ConcurrentHashMap<>();
 
   private static final ConcurrentHashMap<SatelliteCommunicationAllowedStateCallbackWrapper,
@@ -823,43 +823,31 @@ public class SatelliteManagerWrapper {
     }
   }
 
-  private class CarrierRoamingNtnModeListener extends TelephonyCallback
-          implements TelephonyCallback.CarrierRoamingNtnModeListener {
-
-    private CarrierRoamingNtnModeListenerWrapper mListenerWrapper;
-
-    public CarrierRoamingNtnModeListener(CarrierRoamingNtnModeListenerWrapper listenerWrapper) {
-      mListenerWrapper = listenerWrapper;
-    }
-
-    @Override
-    public void onCarrierRoamingNtnModeChanged(boolean active) {
-      logd("onCarrierRoamingNtnModeChanged: active=" + active);
-      mListenerWrapper.onCarrierRoamingNtnModeChanged(active);
-    }
-  }
-
   /** Register for carrier roaming non-terrestrial network mode changes. */
   public void registerForCarrierRoamingNtnModeChanged(int subId,
           @NonNull @CallbackExecutor Executor executor,
           @NonNull CarrierRoamingNtnModeListenerWrapper listener) {
-    logd("registerForCarrierRoamingNtnModeChanged: subId=" + subId);
-    CarrierRoamingNtnModeListener internalListener = new CarrierRoamingNtnModeListener(listener);
+    TelephonyCallback.CarrierRoamingNtnModeListener internalListener = new TelephonyCallback
+            .CarrierRoamingNtnModeListener() {
+      @Override
+      public void onCarrierRoamingNtnModeChanged(boolean active) {
+        listener.onCarrierRoamingNtnModeChanged(active);
+      }
+    };
     sCarrierRoamingNtnModeListenerWrapperMap.put(listener, internalListener);
 
     TelephonyManager tm = mTelephonyManager.createForSubscriptionId(subId);
-    tm.registerTelephonyCallback(executor, internalListener);
+    tm.registerTelephonyCallback(executor, (TelephonyCallback) internalListener);
   }
 
   /** Unregister for carrier roaming non-terrestrial network mode changes. */
   public void unregisterForCarrierRoamingNtnModeChanged(int subId,
           @NonNull CarrierRoamingNtnModeListenerWrapper listener) {
-    logd("unregisterForCarrierRoamingNtnModeChanged: subId=" + subId);
-    CarrierRoamingNtnModeListener internalListener =
+    TelephonyCallback.CarrierRoamingNtnModeListener internalListener =
             sCarrierRoamingNtnModeListenerWrapperMap.get(listener);
     if (internalListener != null) {
       TelephonyManager tm = mTelephonyManager.createForSubscriptionId(subId);
-      tm.unregisterTelephonyCallback(internalListener);
+      tm.unregisterTelephonyCallback((TelephonyCallback) internalListener);
     }
   }
 
