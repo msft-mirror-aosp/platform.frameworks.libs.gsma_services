@@ -99,6 +99,10 @@ public class SatelliteManagerWrapper {
       sSatelliteTransmissionUpdateCallbackWrapperMap = new ConcurrentHashMap<>();
 
   private static final ConcurrentHashMap<
+          SatelliteTransmissionUpdateCallbackWrapper2, SatelliteTransmissionUpdateCallback>
+          sSatelliteTransmissionUpdateCallbackWrapperMap2 = new ConcurrentHashMap<>();
+
+  private static final ConcurrentHashMap<
           NtnSignalStrengthCallbackWrapper, NtnSignalStrengthCallback>
       sNtnSignalStrengthCallbackWrapperMap = new ConcurrentHashMap<>();
 
@@ -706,6 +710,66 @@ public class SatelliteManagerWrapper {
   }
 
   /**
+   * Start receiving satellite transmission updates. This can be called by the pointing UI when the
+   * user starts pointing to the satellite. Modem should continue to report the pointing input as
+   * the device or satellite moves. Satellite transmission updates are started only on {@link
+   * #SATELLITE_RESULT_SUCCESS}. All other results indicate that this operation failed.
+   * Once satellite transmission updates begin, position and datagram transfer state updates
+   * will be sent through {@link SatelliteTransmissionUpdateCallback}.
+   */
+  public void startTransmissionUpdates2(
+          @NonNull @CallbackExecutor Executor executor,
+          @SatelliteResult @NonNull Consumer<Integer> resultListener,
+          @NonNull SatelliteTransmissionUpdateCallbackWrapper2 callback) {
+
+    SatelliteTransmissionUpdateCallback internalCallback =
+            new SatelliteTransmissionUpdateCallback() {
+
+              @Override
+              public void onSendDatagramStateChanged(
+                      @SatelliteDatagramTransferState int state,
+                      int sendPendingCount,
+                      @SatelliteResult int errorCode) {
+                callback.onSendDatagramStateChanged(state, sendPendingCount, errorCode);
+              }
+
+              @Override
+              public void onSendDatagramStateChanged(
+                      @SatelliteManager.DatagramType int datagramType,
+                      @SatelliteDatagramTransferState int state,
+                      int sendPendingCount,
+                      @SatelliteResult int errorCode) {
+                callback.onSendDatagramStateChanged(
+                        datagramType, state, sendPendingCount, errorCode);
+              }
+
+              @Override
+              public void onReceiveDatagramStateChanged(
+                      @SatelliteDatagramTransferState int state,
+                      int receivePendingCount,
+                      @SatelliteResult int errorCode) {
+                callback.onReceiveDatagramStateChanged(state, receivePendingCount, errorCode);
+              }
+
+              @Override
+              public void onSatellitePositionChanged(@NonNull PointingInfo pointingInfo) {
+                callback.onSatellitePositionChanged(
+                        new PointingInfoWrapper(
+                                pointingInfo.getSatelliteAzimuthDegrees(),
+                                pointingInfo.getSatelliteElevationDegrees()));
+              }
+
+              @Override
+              public void onSendDatagramRequested(@SatelliteManager.DatagramType int datagramType) {
+                callback.onSendDatagramRequested(datagramType);
+              }
+            };
+    sSatelliteTransmissionUpdateCallbackWrapperMap2.put(callback, internalCallback);
+
+    mSatelliteManager.startTransmissionUpdates(executor, resultListener, internalCallback);
+  }
+
+  /**
    * Stop receiving satellite transmission updates. This can be called by the pointing UI when the
    * user stops pointing to the satellite. Satellite transmission updates are stopped and the
    * callback is unregistered only on {@link #SATELLITE_RESULT_SUCCESS}. All other results that this
@@ -716,10 +780,28 @@ public class SatelliteManagerWrapper {
       @NonNull @CallbackExecutor Executor executor,
       @SatelliteResult @NonNull Consumer<Integer> resultListener) {
     SatelliteTransmissionUpdateCallback internalCallback =
-        sSatelliteTransmissionUpdateCallbackWrapperMap.get(callback);
+        sSatelliteTransmissionUpdateCallbackWrapperMap.remove(callback);
     if (internalCallback != null) {
       mSatelliteManager.stopTransmissionUpdates(
           internalCallback, executor, resultListener);
+    }
+  }
+
+  /**
+   * Stop receiving satellite transmission updates. This can be called by the pointing UI when the
+   * user stops pointing to the satellite. Satellite transmission updates are stopped and the
+   * callback is unregistered only on {@link #SATELLITE_RESULT_SUCCESS}. All other results that this
+   * operation failed.
+   */
+  public void stopTransmissionUpdates2(
+          @NonNull SatelliteTransmissionUpdateCallbackWrapper2 callback,
+          @NonNull @CallbackExecutor Executor executor,
+          @SatelliteResult @NonNull Consumer<Integer> resultListener) {
+    SatelliteTransmissionUpdateCallback internalCallback =
+            sSatelliteTransmissionUpdateCallbackWrapperMap2.remove(callback);
+    if (internalCallback != null) {
+      mSatelliteManager.stopTransmissionUpdates(
+              internalCallback, executor, resultListener);
     }
   }
 
@@ -782,7 +864,7 @@ public class SatelliteManagerWrapper {
   public void unregisterForProvisionStateChanged(
       @NonNull SatelliteProvisionStateCallbackWrapper callback) {
     SatelliteProvisionStateCallback internalCallback =
-        sSatelliteProvisionStateCallbackWrapperMap.get(callback);
+        sSatelliteProvisionStateCallbackWrapperMap.remove(callback);
     if (internalCallback != null) {
       mSatelliteManager.unregisterForProvisionStateChanged(internalCallback);
     }
@@ -853,7 +935,7 @@ public class SatelliteManagerWrapper {
    */
   public void unregisterForModemStateChanged(
       @NonNull SatelliteModemStateCallbackWrapper callback) {
-    SatelliteModemStateCallback internalCallback = sSatelliteModemStateCallbackWrapperMap.get(
+    SatelliteModemStateCallback internalCallback = sSatelliteModemStateCallbackWrapperMap.remove(
             callback);
     if (internalCallback != null) {
       mSatelliteManager.unregisterForModemStateChanged(internalCallback);
@@ -866,7 +948,7 @@ public class SatelliteManagerWrapper {
    */
   public void unregisterForModemStateChanged(
           @NonNull SatelliteModemStateCallbackWrapper2 callback) {
-    SatelliteModemStateCallback internalCallback = sSatelliteModemStateCallbackWrapperMap2.get(
+    SatelliteModemStateCallback internalCallback = sSatelliteModemStateCallbackWrapperMap2.remove(
             callback);
     if (internalCallback != null) {
       mSatelliteManager.unregisterForModemStateChanged(internalCallback);
@@ -903,7 +985,8 @@ public class SatelliteManagerWrapper {
    * before, the request will be ignored.
    */
   public void unregisterForIncomingDatagram(@NonNull SatelliteDatagramCallbackWrapper callback) {
-    SatelliteDatagramCallback internalCallback = sSatelliteDatagramCallbackWrapperMap.get(callback);
+    SatelliteDatagramCallback internalCallback =
+            sSatelliteDatagramCallbackWrapperMap.remove(callback);
     if (internalCallback != null) {
       mSatelliteManager.unregisterForIncomingDatagram(internalCallback);
     }
@@ -972,7 +1055,7 @@ public class SatelliteManagerWrapper {
           @NonNull CarrierRoamingNtnModeListenerWrapper listener) {
     logd("unregisterForCarrierRoamingNtnModeChanged: subId=" + subId);
     CarrierRoamingNtnModeListener internalListener =
-            sCarrierRoamingNtnModeListenerWrapperMap.get(listener);
+            sCarrierRoamingNtnModeListenerWrapperMap.remove(listener);
     if (internalListener != null) {
       TelephonyManager tm = mTelephonyManager.createForSubscriptionId(subId);
       tm.unregisterTelephonyCallback(internalListener);
@@ -984,7 +1067,7 @@ public class SatelliteManagerWrapper {
           @NonNull CarrierRoamingNtnModeListenerWrapper2 listener) {
     logd("unregisterForCarrierRoamingNtnModeChanged: subId=" + subId);
     CarrierRoamingNtnModeListener internalListener =
-            sCarrierRoamingNtnModeListenerWrapperMap.get(listener);
+            sCarrierRoamingNtnModeListenerWrapperMap.remove(listener);
     if (internalListener != null) {
       TelephonyManager tm = mTelephonyManager.createForSubscriptionId(subId);
       tm.unregisterTelephonyCallback(internalListener);
@@ -1129,7 +1212,8 @@ public class SatelliteManagerWrapper {
   @FlaggedApi(Flags.FLAG_OEM_ENABLED_SATELLITE_FLAG)
   public void unregisterForNtnSignalStrengthChanged(
       @NonNull NtnSignalStrengthCallbackWrapper callback) {
-    NtnSignalStrengthCallback internalCallback = sNtnSignalStrengthCallbackWrapperMap.get(callback);
+    NtnSignalStrengthCallback internalCallback =
+            sNtnSignalStrengthCallbackWrapperMap.remove(callback);
     if (internalCallback != null) {
       try {
         mSatelliteManager.unregisterForNtnSignalStrengthChanged(internalCallback);
@@ -1194,7 +1278,7 @@ public class SatelliteManagerWrapper {
   public void unregisterForCapabilitiesChanged(
           @NonNull SatelliteCapabilitiesCallbackWrapper callback) {
     SatelliteCapabilitiesCallback internalCallback =
-            sSatelliteCapabilitiesCallbackWrapperMap.get(callback);
+            sSatelliteCapabilitiesCallbackWrapperMap.remove(callback);
     if (internalCallback != null) {
       mSatelliteManager.unregisterForCapabilitiesChanged(internalCallback);
     }
@@ -1471,7 +1555,7 @@ public class SatelliteManagerWrapper {
   public void unregisterForSupportedStateChanged(
           @NonNull SatelliteSupportedStateCallbackWrapper callback) {
     SatelliteSupportedStateCallback internalCallback =
-            sSatelliteSupportedStateCallbackWrapperMap.get(callback);
+            sSatelliteSupportedStateCallbackWrapperMap.remove(callback);
     if (internalCallback != null) {
       mSatelliteManager.unregisterForSupportedStateChanged(internalCallback);
     }
@@ -1502,7 +1586,7 @@ public class SatelliteManagerWrapper {
   public void unregisterForCommunicationAllowedStateChanged(
           @NonNull SatelliteCommunicationAllowedStateCallbackWrapper callback) {
     SatelliteCommunicationAllowedStateCallback internalCallback =
-            sSatelliteCommunicationAllowedStateCallbackWrapperMap.get(callback);
+            sSatelliteCommunicationAllowedStateCallbackWrapperMap.remove(callback);
     if (internalCallback != null) {
       mSatelliteManager.unregisterForCommunicationAllowedStateChanged(internalCallback);
     }
