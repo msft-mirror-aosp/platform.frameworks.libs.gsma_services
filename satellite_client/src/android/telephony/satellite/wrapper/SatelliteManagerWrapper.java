@@ -921,6 +921,10 @@ public class SatelliteManagerWrapper {
               public void onEmergencyModeChanged(boolean isEmergency) {
                 callback.onEmergencyModeChanged(isEmergency);
               }
+
+              public void onRegistrationFailure(int causeCode) {
+                callback.onRegistrationFailure(causeCode);
+              }
             };
     sSatelliteModemStateCallbackWrapperMap2.put(callback, internalCallback);
 
