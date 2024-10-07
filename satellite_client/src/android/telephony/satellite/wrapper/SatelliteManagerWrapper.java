@@ -932,6 +932,10 @@ public class SatelliteManagerWrapper {
               public void onRegistrationFailure(int causeCode) {
                 callback.onRegistrationFailure(causeCode);
               }
+
+              public void onTerrestrialNetworkAvailableChanged(boolean isAvailable) {
+                callback.onTerrestrialNetworkAvailableChanged(isAvailable);
+              }
             };
     sSatelliteModemStateCallbackWrapperMap2.put(callback, internalCallback);
 
