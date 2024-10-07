@@ -1,4 +1,4 @@
-/*
+  /*
  * Copyright (C) 2023 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -17,7 +17,7 @@
 package android.telephony.satellite.wrapper;
 
 /** A callback class for monitoring satellite modem state change events. */
-public interface SatelliteModemStateCallbackWrapper {
+public interface SatelliteModemStateCallbackWrapper2 {
 
   /**
    * Called when satellite modem state changes.
@@ -25,4 +25,19 @@ public interface SatelliteModemStateCallbackWrapper {
    * @param state The new satellite modem state.
    */
   void onSatelliteModemStateChanged(@SatelliteManagerWrapper.SatelliteModemState int state);
+
+  /**
+   * Called when the satellite emergency mode has changed.
+   *
+   * @param isEmergency {@code true} enabled for emergency mode, {@code false} otherwise.
+   */
+  default void onEmergencyModeChanged(boolean isEmergency) {};
+
+  /**
+   * Indicates that the satellite registration failed with following failure code
+   *
+   * @param causeCode the primary failure cause code of the procedure.
+   *        For LTE (EMM), cause codes are TS 24.301 Sec 9.9.3.9
+   */
+  default void onRegistrationFailure(int causeCode) {};
 }
