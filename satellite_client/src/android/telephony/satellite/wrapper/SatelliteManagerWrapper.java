@@ -39,6 +39,7 @@ import android.telephony.satellite.EnableRequestAttributes;
 import android.telephony.satellite.NtnSignalStrength;
 import android.telephony.satellite.NtnSignalStrengthCallback;
 import android.telephony.satellite.PointingInfo;
+import android.telephony.satellite.SatelliteAccessConfiguration;
 import android.telephony.satellite.SatelliteCapabilities;
 import android.telephony.satellite.SatelliteCapabilitiesCallback;
 import android.telephony.satellite.SatelliteCommunicationAllowedStateCallback;
@@ -125,6 +126,10 @@ public class SatelliteManagerWrapper {
   private static final ConcurrentHashMap<SatelliteCommunicationAllowedStateCallbackWrapper,
           SatelliteCommunicationAllowedStateCallback>
           sSatelliteCommunicationAllowedStateCallbackWrapperMap = new ConcurrentHashMap<>();
+
+    private static final ConcurrentHashMap<SatelliteCommunicationAllowedStateCallbackWrapper2,
+            SatelliteCommunicationAllowedStateCallback>
+            sSatelliteCommunicationAllowedStateCallbackWrapperMap2 = new ConcurrentHashMap<>();
 
   private final SatelliteManager mSatelliteManager;
   private final SubscriptionManager mSubscriptionManager;
@@ -1130,6 +1135,26 @@ public class SatelliteManagerWrapper {
         executor, internalCallback);
   }
 
+  /** Request to get satellite configuration for the current location. */
+  public void requestSatelliteConfigurationForCurrentLocation(
+          @NonNull @CallbackExecutor Executor executor,
+          @NonNull OutcomeReceiver<Boolean, SatelliteExceptionWrapper> callback) {
+    OutcomeReceiver internalCallback =
+            new OutcomeReceiver<Boolean, SatelliteException>() {
+              @Override
+              public void onResult(Boolean result) {
+                callback.onResult(result);
+              }
+
+              @Override
+              public void onError(SatelliteException exception) {
+                callback.onError(new SatelliteExceptionWrapper(exception.getErrorCode()));
+              }
+            };
+    mSatelliteManager.requestSatelliteAccessConfigurationForCurrentLocation(executor,
+            internalCallback);
+  }
+
   /**
    * Request to get the duration in seconds after which the satellite will be visible. This will be
    * {@link Duration#ZERO} if the satellite is currently visible.
@@ -1585,6 +1610,30 @@ public class SatelliteManagerWrapper {
               }
             };
     sSatelliteCommunicationAllowedStateCallbackWrapperMap.put(callback, internalCallback);
+    int result = mSatelliteManager.registerForCommunicationAllowedStateChanged(executor,
+            internalCallback);
+    return result;
+  }
+
+  /** Registers for the satellite communication allowed state changed. */
+  @SatelliteResult
+  public int registerForCommunicationAllowedStateChanged2(
+          @NonNull @CallbackExecutor Executor executor,
+          @NonNull SatelliteCommunicationAllowedStateCallbackWrapper2 callback) {
+    SatelliteCommunicationAllowedStateCallback internalCallback =
+            new SatelliteCommunicationAllowedStateCallback() {
+              @Override
+              public void onSatelliteCommunicationAllowedStateChanged(boolean supported) {
+                callback.onSatelliteCommunicationAllowedStateChanged(supported);
+              }
+
+              @Override
+              public void onSatelliteAccessConfigurationChanged(SatelliteAccessConfiguration
+                      satelliteAccessConfiguration) {
+                callback.onSatelliteAccessConfigurationChanged(satelliteAccessConfiguration);
+              }
+            };
+    sSatelliteCommunicationAllowedStateCallbackWrapperMap2.put(callback, internalCallback);
     int result = mSatelliteManager.registerForCommunicationAllowedStateChanged(executor,
             internalCallback);
     return result;
