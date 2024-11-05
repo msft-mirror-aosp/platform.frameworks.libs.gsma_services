@@ -61,6 +61,7 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.reflect.Method;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -932,6 +933,10 @@ public class SatelliteManagerWrapper {
               public void onRegistrationFailure(int causeCode) {
                 callback.onRegistrationFailure(causeCode);
               }
+
+              public void onTerrestrialNetworkAvailableChanged(boolean isAvailable) {
+                callback.onTerrestrialNetworkAvailableChanged(isAvailable);
+              }
             };
     sSatelliteModemStateCallbackWrapperMap2.put(callback, internalCallback);
 
@@ -1035,6 +1040,13 @@ public class SatelliteManagerWrapper {
       if (mListenerWrapper2 != null) {
         mListenerWrapper2.onCarrierRoamingNtnEligibleStateChanged(eligible);
       }
+    }
+
+    @Override
+    public void onCarrierRoamingNtnAvailableServicesChanged(
+            @NetworkRegistrationInfo.ServiceType List<Integer> availableServices) {
+      logd("onCarrierRoamingNtnAvailableServicesChanged: availableServices="
+              + availableServices.stream().map(String::valueOf).collect(Collectors.joining(", ")));
     }
   }
 
