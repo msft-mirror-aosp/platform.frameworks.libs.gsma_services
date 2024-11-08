@@ -1768,6 +1768,18 @@ public class SatelliteManagerWrapper {
             .collect(Collectors.toList()), executor, internalCallback);
   }
 
+  /**
+   * Inform whether application supports NTN SMS in satellite mode.
+   *
+   * This method is used by default messaging application to inform framework whether it supports
+   * NTN SMS or not.
+   *
+   * @param ntnSmsSupported {@code true} If application supports NTN SMS, else {@code false}.
+   */
+  public void setNtnSmsSupported(boolean ntnSmsSupported) {
+    mSatelliteManager.setNtnSmsSupported(ntnSmsSupported);
+  }
+
   @Nullable
   private ServiceState getServiceStateForSubscriptionId(int subId) {
     if (!mSubscriptionManager.isValidSubscriptionId(subId)) {
