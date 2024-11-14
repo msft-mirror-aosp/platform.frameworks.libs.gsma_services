@@ -1363,6 +1363,35 @@ public class SatelliteManagerWrapper {
   }
 
   /**
+   * Request to get the currently selected satellite subscription id as an {@link Integer}.
+   */
+  public void requestSelectedNbIotSatelliteSubscriptionId(
+      @NonNull @CallbackExecutor Executor executor,
+      @NonNull OutcomeReceiver<Integer, SatelliteExceptionWrapper> callback) {
+    if (mSatelliteManager == null) {
+      logd("requestSelectedNbIotSatelliteSubscriptionId: mSatelliteManager is null");
+      executor.execute(() -> Binder.withCleanCallingIdentity(() -> callback.onError(
+              new SatelliteExceptionWrapper(
+                      SatelliteManager.SATELLITE_RESULT_REQUEST_NOT_SUPPORTED))));
+      return;
+    }
+
+    OutcomeReceiver internalCallback =
+        new OutcomeReceiver<Integer, SatelliteException>() {
+          @Override
+          public void onResult(Integer result) {
+            callback.onResult(result);
+          }
+
+          @Override
+          public void onError(SatelliteException exception) {
+            callback.onError(new SatelliteExceptionWrapper(exception.getErrorCode()));
+          }
+        };
+    mSatelliteManager.requestSelectedNbIotSatelliteSubscriptionId(executor, internalCallback);
+  }
+
+  /**
    * Inform whether the device is aligned with the satellite for demo mode.
    */
   public void setDeviceAlignedWithSatellite(boolean isAligned) {
