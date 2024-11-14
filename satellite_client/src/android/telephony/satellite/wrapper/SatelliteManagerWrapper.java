@@ -65,14 +65,12 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.reflect.Method;
 import java.time.Duration;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.function.Consumer;
@@ -1884,6 +1882,61 @@ public class SatelliteManagerWrapper {
               }
             };
     mSatelliteManager.requestSessionStats(executor, internalCallback);
+  }
+
+  /** Request to get the {@link SatelliteSessionStatsWrapper2} of the satellite service. */
+  public void requestSessionStats2(@NonNull @CallbackExecutor Executor executor,
+          @NonNull OutcomeReceiver<SatelliteSessionStatsWrapper2,
+                  SatelliteExceptionWrapper> callback) {
+    logd("requestSessionStats2 called");
+    if (mSatelliteManager == null) {
+      executor.execute(() -> Binder.withCleanCallingIdentity(() -> callback.onError(
+              new SatelliteExceptionWrapper(
+                      SatelliteManager.SATELLITE_RESULT_REQUEST_NOT_SUPPORTED))));
+      return;
+    }
+    OutcomeReceiver internalCallback =
+            new OutcomeReceiver<SatelliteSessionStats, SatelliteException>() {
+              @Override
+              public void onResult(SatelliteSessionStats result) {
+                logd("requestSessionStats2 onResult received");
+                Map<Integer, SatelliteSessionStats> satelliteSessionStats =
+                        result.getSatelliteSessionStats();
+                Map<Integer, SatelliteSessionStatsWrapper2> sessionStatsMap = new HashMap<>();
+                for (Map.Entry<Integer, SatelliteSessionStats> entry :
+                        satelliteSessionStats.entrySet()) {
+                  sessionStatsMap.put(entry.getKey(),
+                          buildSatelliteSessionStatsWrapper2(entry.getValue()));
+                }
+                SatelliteSessionStatsWrapper2 sessionStatsWrapper2 =
+                        new SatelliteSessionStatsWrapper2();
+                sessionStatsWrapper2.setSatelliteSessionStats(sessionStatsMap);
+                logd("requestSessionStats2 completed sessionStatsWrapper2 = " +sessionStatsWrapper2);
+                callback.onResult(sessionStatsWrapper2);
+              }
+
+              @Override
+              public void onError(SatelliteException exception) {
+                callback.onError(new SatelliteExceptionWrapper(exception.getErrorCode()));
+              }
+            };
+    mSatelliteManager.requestSessionStats(executor, internalCallback);
+  }
+
+  private SatelliteSessionStatsWrapper2 buildSatelliteSessionStatsWrapper2(
+          SatelliteSessionStats value) {
+    SatelliteSessionStatsWrapper2 data = new SatelliteSessionStatsWrapper2();
+    data.updateLatencyOfAllSuccessfulUserMessages(value.getLatencyOfAllSuccessfulUserMessages());
+    data.setMaxLatency(value.getMaxLatency());
+    data.setLastMessageLatency(value.getLastMessageLatency());
+    data.setCountOfSuccessfulUserMessages(value.getCountOfSuccessfulUserMessages());
+    data.setCountOfUnsuccessfulUserMessages(value.getCountOfUnsuccessfulUserMessages());
+    data.setCountOfTimedOutUserMessagesWaitingForAck(
+            value.getCountOfTimedOutUserMessagesWaitingForAck());
+    data.setCountOfTimedOutUserMessagesWaitingForConnection(
+            value.getCountOfTimedOutUserMessagesWaitingForConnection());
+    data.setCountOfUserMessagesInQueueToBeSent(value.getCountOfUserMessagesInQueueToBeSent());
+    return data;
   }
 
   /**
