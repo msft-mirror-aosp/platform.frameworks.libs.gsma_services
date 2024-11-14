@@ -1190,9 +1190,8 @@ public class SatelliteManagerWrapper {
 
     @Override
     public void onCarrierRoamingNtnAvailableServicesChanged(
-            @NetworkRegistrationInfo.ServiceType List<Integer> availableServices) {
-      logd("onCarrierRoamingNtnAvailableServicesChanged: availableServices="
-              + availableServices.stream().map(String::valueOf).collect(Collectors.joining(", ")));
+            @NetworkRegistrationInfo.ServiceType int[] availableServices) {
+      logd("onCarrierRoamingNtnAvailableServicesChanged");
     }
   }
 
@@ -2175,7 +2174,7 @@ public class SatelliteManagerWrapper {
       for (SatelliteSubscriberProvisionStatus status : input) {
         SatelliteSubscriberInfo info = status.getSatelliteSubscriberInfo();
         output.add(new SatelliteSubscriberProvisionStatusWrapper.Builder()
-                .setProvisionStatus(status.getProvisionStatus())
+                .setProvisionStatus(status.isProvisioned())
                 .setSatelliteSubscriberInfo(
                         new SatelliteSubscriberInfoWrapper.Builder()
                                 .setSubscriberId(info.getSubscriberId())
