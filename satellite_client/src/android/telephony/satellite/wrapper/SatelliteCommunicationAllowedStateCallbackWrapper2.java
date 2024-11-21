@@ -17,7 +17,6 @@
 package android.telephony.satellite.wrapper;
 
 import android.annotation.Nullable;
-import android.telephony.satellite.SatelliteAccessConfiguration;
 
 /** A callback class for monitoring satellite communication allowed state change events. */
 public interface SatelliteCommunicationAllowedStateCallbackWrapper2 {
@@ -34,15 +33,14 @@ public interface SatelliteCommunicationAllowedStateCallbackWrapper2 {
     /**
      * Callback method invoked when the satellite access configuration changes
      *
-     * @param satelliteAccessConfiguration The satellite access configuration associated with
-     *                                     the current location. When satellite is not allowed at
-     *                                     the current location,
-     *                                     {@code satelliteAccessConfiguration} will be null.
+     * @param satelliteAccessConfigurationWrapper The satellite access configuration associated with
+     *                                            the current location. When satellite is not
+     *                                            allowed at the current location,
+     *                                            {@code satelliteAccessConfigurationWrapper}
+     *                                            will be null.
      * @hide
      */
     default void onSatelliteAccessConfigurationChanged(
-            @Nullable SatelliteAccessConfiguration satelliteAccessConfiguration) {
-    }
-
-    ;
+            @Nullable SatelliteAccessConfigurationWrapper satelliteAccessConfigurationWrapper) {
+    };
 }
