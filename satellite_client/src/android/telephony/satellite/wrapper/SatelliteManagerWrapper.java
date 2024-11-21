@@ -1366,6 +1366,35 @@ public class SatelliteManagerWrapper {
   }
 
   /**
+   * Request to get the name to display for Satellite as a {@link String}.
+   */
+  public void requestSatelliteDisplayName(
+          @NonNull @CallbackExecutor Executor executor,
+          @NonNull OutcomeReceiver<String, SatelliteExceptionWrapper> callback) {
+    if (mSatelliteManager == null) {
+      logd("requestSatelliteDisplayName: mSatelliteManager is null");
+      executor.execute(() -> Binder.withCleanCallingIdentity(() -> callback.onError(
+              new SatelliteExceptionWrapper(
+                      SatelliteManager.SATELLITE_RESULT_REQUEST_NOT_SUPPORTED))));
+      return;
+    }
+
+    OutcomeReceiver internalCallback =
+            new OutcomeReceiver<String, SatelliteException>() {
+              @Override
+              public void onResult(String result) {
+                callback.onResult(result);
+              }
+
+              @Override
+              public void onError(SatelliteException exception) {
+                callback.onError(new SatelliteExceptionWrapper(exception.getErrorCode()));
+              }
+            };
+    mSatelliteManager.requestSatelliteDisplayName(executor, internalCallback);
+  }
+
+  /**
    * Request to get the currently selected satellite subscription id as an {@link Integer}.
    */
   public void requestSelectedNbIotSatelliteSubscriptionId(
