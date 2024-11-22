@@ -65,14 +65,12 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.reflect.Method;
 import java.time.Duration;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.function.Consumer;
@@ -1307,12 +1305,12 @@ public class SatelliteManagerWrapper {
         executor, internalCallback);
   }
 
-  /** Request to get satellite configuration for the current location. */
-  public void requestSatelliteConfigurationForCurrentLocation(
+  /** Request to get satellite access configuration for the current location. */
+  public void requestSatelliteAccessConfigurationForCurrentLocation(
           @NonNull @CallbackExecutor Executor executor,
-          @NonNull OutcomeReceiver<Boolean, SatelliteExceptionWrapper> callback) {
+          @NonNull OutcomeReceiver<SatelliteAccessConfigurationWrapper, SatelliteExceptionWrapper> callback) {
     if (mSatelliteManager == null) {
-      logd("requestSatelliteConfigurationForCurrentLocation: mSatelliteManager is null");
+      logd("requestSatelliteAccessConfigurationForCurrentLocation: mSatelliteManager is null");
       executor.execute(() -> Binder.withCleanCallingIdentity(() -> callback.onError(
               new SatelliteExceptionWrapper(
                       SatelliteManager.SATELLITE_RESULT_REQUEST_NOT_SUPPORTED))));
@@ -1320,10 +1318,12 @@ public class SatelliteManagerWrapper {
     }
 
     OutcomeReceiver internalCallback =
-            new OutcomeReceiver<Boolean, SatelliteException>() {
+            new OutcomeReceiver<SatelliteAccessConfiguration, SatelliteException>() {
               @Override
-              public void onResult(Boolean result) {
-                callback.onResult(result);
+              public void onResult(SatelliteAccessConfiguration result) {
+                callback.onResult(new SatelliteAccessConfigurationWrapper(
+                        getSatelliteInfoListWrapper(result.getSatelliteInfos()),
+                        result.getTagIds()));
               }
 
               @Override
@@ -1331,6 +1331,7 @@ public class SatelliteManagerWrapper {
                 callback.onError(new SatelliteExceptionWrapper(exception.getErrorCode()));
               }
             };
+
     mSatelliteManager.requestSatelliteAccessConfigurationForCurrentLocation(executor,
             internalCallback);
   }
@@ -1927,23 +1928,24 @@ public class SatelliteManagerWrapper {
     return result;
   }
 
-  private List<SatelliteInfoWrapper> getSatelliteInfoListWrapper(
+  @NonNull
+  private List<SatelliteInfoWrapper> getSatelliteInfoListWrapper(@NonNull
           List<SatelliteInfo> satelliteInfoList) {
       List<SatelliteInfoWrapper> satelliteInfoWrapperList = new ArrayList<>();
+
       for (SatelliteInfo info : satelliteInfoList) {
-          SatellitePositionWrapper satellitePositionWrapperWrapper = null;
-          if (info.getSatellitePosition() != null) {
-              satellitePositionWrapperWrapper = new SatellitePositionWrapper(
+          SatellitePositionWrapper satellitePositionWrapper = new SatellitePositionWrapper(
                       info.getSatellitePosition().getLongitudeDegrees(),
                       info.getSatellitePosition().getAltitudeKm());
-          }
+
           List<EarfcnRangeWrapper> earfcnRangeWrapperList = new ArrayList<>();
           for (EarfcnRange range : info.getEarfcnRanges()) {
               earfcnRangeWrapperList.add(new EarfcnRangeWrapper(
                       range.getStartEarfcn(), range.getEndEarfcn()));
           }
+
           SatelliteInfoWrapper satelliteInfoWrapper = new SatelliteInfoWrapper(
-                  info.getSatelliteId(), satellitePositionWrapperWrapper,
+                  info.getSatelliteId(), satellitePositionWrapper,
                   info.getBands(), earfcnRangeWrapperList);
 
           satelliteInfoWrapperList.add(satelliteInfoWrapper);
