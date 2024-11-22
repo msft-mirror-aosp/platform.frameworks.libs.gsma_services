@@ -56,6 +56,7 @@ import android.telephony.satellite.SatelliteSubscriberInfo;
 import android.telephony.satellite.SatelliteSubscriberProvisionStatus;
 import android.telephony.satellite.SatelliteSupportedStateCallback;
 import android.telephony.satellite.SatelliteTransmissionUpdateCallback;
+import android.telephony.satellite.SelectedNbIotSatelliteSubscriptionCallback;
 
 import com.android.internal.telephony.flags.Flags;
 import com.android.telephony.Rlog;
@@ -133,9 +134,13 @@ public class SatelliteManagerWrapper {
           SatelliteCommunicationAllowedStateCallback>
           sSatelliteCommunicationAllowedStateCallbackWrapperMap = new ConcurrentHashMap<>();
 
-    private static final ConcurrentHashMap<SatelliteCommunicationAllowedStateCallbackWrapper2,
-            SatelliteCommunicationAllowedStateCallback>
-            sSatelliteCommunicationAllowedStateCallbackWrapperMap2 = new ConcurrentHashMap<>();
+  private static final ConcurrentHashMap<SatelliteCommunicationAllowedStateCallbackWrapper2,
+          SatelliteCommunicationAllowedStateCallback>
+          sSatelliteCommunicationAllowedStateCallbackWrapperMap2 = new ConcurrentHashMap<>();
+
+  private static final ConcurrentHashMap<SelectedNbIotSatelliteSubscriptionCallbackWrapper,
+          SelectedNbIotSatelliteSubscriptionCallback>
+      sSelectedNbIotSatelliteSubscriptionCallbackWrapperMap = new ConcurrentHashMap<>();
 
   private final SatelliteManager mSatelliteManager;
   private final SubscriptionManager mSubscriptionManager;
@@ -1393,6 +1398,45 @@ public class SatelliteManagerWrapper {
         };
     mSatelliteManager.requestSelectedNbIotSatelliteSubscriptionId(executor, internalCallback);
   }
+
+    /**
+     * Wrapper API to register for selected satellite subscription changed event from the satellite
+     * service.
+     *
+     * @param executor The executor on which the callback will be called.
+     * @param callback The callback to handle the selected satellite subscription changed event.
+     */
+    @SatelliteResult public int registerForSelectedNbIotSatelliteSubscriptionChanged(
+            @NonNull @CallbackExecutor Executor executor,
+            @NonNull SelectedNbIotSatelliteSubscriptionCallbackWrapper callback) {
+        SelectedNbIotSatelliteSubscriptionCallback internalCallback =
+                selectedSubId -> callback.onSelectedNbIotSatelliteSubscriptionChanged(
+                        selectedSubId);
+    sSelectedNbIotSatelliteSubscriptionCallbackWrapperMap.put(callback, internalCallback);
+    return mSatelliteManager.registerForSelectedNbIotSatelliteSubscriptionChanged(executor,
+            internalCallback);
+    }
+
+    /**
+     * Wrapper API to unregisters for selected satellite subscription changed event from the
+     * satellite service. If callback was not registered before, the request will be ignored.
+     *
+     * @param callback The callback that was passed to {@link
+     *     #registerForSelectedNbIotSatelliteSubscriptionChanged(Executor,
+     *     SelectedNbIotSatelliteSubscriptionCallbackWrapper)}.
+     */
+    public void unregisterForSelectedNbIotSatelliteSubscriptionChanged(
+            @NonNull SelectedNbIotSatelliteSubscriptionCallbackWrapper callback) {
+        SelectedNbIotSatelliteSubscriptionCallback internalCallback =
+                sSelectedNbIotSatelliteSubscriptionCallbackWrapperMap.remove(callback);
+        if (internalCallback != null) {
+            mSatelliteManager.unregisterForSelectedNbIotSatelliteSubscriptionChanged(
+                    internalCallback);
+        } else {
+            logd("unregisterForSelectedNbIotSatelliteSubscriptionChanged: internalCallback is"
+                    + " null");
+        }
+    }
 
   /**
    * Inform whether the device is aligned with the satellite for demo mode.
