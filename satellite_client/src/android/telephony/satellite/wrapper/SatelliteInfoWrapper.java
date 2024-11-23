@@ -16,15 +16,12 @@
 
 package android.telephony.satellite.wrapper;
 
-import android.annotation.FlaggedApi;
 import android.annotation.Nullable;
 import android.os.Parcel;
 import android.os.ParcelUuid;
 import android.os.Parcelable;
 
 import androidx.annotation.NonNull;
-
-import com.android.internal.telephony.flags.Flags;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -46,10 +43,12 @@ public class SatelliteInfoWrapper implements Parcelable {
     private UUID mId;
 
     /**
-     * Position information of a satellite.
+     * Position information of a geostationary satellite.
      * This includes the longitude and altitude of the satellite.
+     * If the SatellitePosition is invalid,
+     * longitudeDegree and altitudeKm will be represented as DOUBLE.NaN.
      */
-    @Nullable
+    @NonNull
     private SatellitePositionWrapper mPosition;
 
     /**
@@ -89,7 +88,7 @@ public class SatelliteInfoWrapper implements Parcelable {
      *                          EARFCN ranges supported by the satellite.
      */
     public SatelliteInfoWrapper(@NonNull UUID satelliteId,
-            @Nullable SatellitePositionWrapper satellitePosition,
+            @NonNull SatellitePositionWrapper satellitePosition,
             @NonNull List<Integer> bandList, @NonNull List<EarfcnRangeWrapper> earfcnRanges) {
         mId = satelliteId;
         mPosition = satellitePosition;
@@ -136,10 +135,9 @@ public class SatelliteInfoWrapper implements Parcelable {
     /**
      * Returns the position of the satellite.
      *
-     * @return The {@link SatellitePositionWrapper} of the satellite, or {@code null} if the
-     * position is not available.
+     * @return The {@link SatellitePositionWrapper} of the satellite.
      */
-    @Nullable
+    @NonNull
     public SatellitePositionWrapper getSatellitePosition() {
         return mPosition;
     }
