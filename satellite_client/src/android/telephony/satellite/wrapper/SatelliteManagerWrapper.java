@@ -26,6 +26,7 @@ import android.annotation.IntDef;
 import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.content.Context;
+import android.os.Binder;
 import android.os.CancellationSignal;
 import android.os.OutcomeReceiver;
 import android.telephony.NetworkRegistrationInfo;
@@ -35,15 +36,18 @@ import android.telephony.SubscriptionManager;
 import android.telephony.TelephonyCallback;
 import android.telephony.TelephonyManager;
 import android.telephony.satellite.AntennaPosition;
+import android.telephony.satellite.EarfcnRange;
 import android.telephony.satellite.EnableRequestAttributes;
 import android.telephony.satellite.NtnSignalStrength;
 import android.telephony.satellite.NtnSignalStrengthCallback;
 import android.telephony.satellite.PointingInfo;
+import android.telephony.satellite.SatelliteAccessConfiguration;
 import android.telephony.satellite.SatelliteCapabilities;
 import android.telephony.satellite.SatelliteCapabilitiesCallback;
 import android.telephony.satellite.SatelliteCommunicationAllowedStateCallback;
 import android.telephony.satellite.SatelliteDatagram;
 import android.telephony.satellite.SatelliteDatagramCallback;
+import android.telephony.satellite.SatelliteInfo;
 import android.telephony.satellite.SatelliteManager;
 import android.telephony.satellite.SatelliteModemStateCallback;
 import android.telephony.satellite.SatelliteProvisionStateCallback;
@@ -52,6 +56,7 @@ import android.telephony.satellite.SatelliteSubscriberInfo;
 import android.telephony.satellite.SatelliteSubscriberProvisionStatus;
 import android.telephony.satellite.SatelliteSupportedStateCallback;
 import android.telephony.satellite.SatelliteTransmissionUpdateCallback;
+import android.telephony.satellite.SelectedNbIotSatelliteSubscriptionCallback;
 
 import com.android.internal.telephony.flags.Flags;
 import com.android.telephony.Rlog;
@@ -61,7 +66,7 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.reflect.Method;
 import java.time.Duration;
 import java.util.ArrayList;
-import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -126,6 +131,14 @@ public class SatelliteManagerWrapper {
   private static final ConcurrentHashMap<SatelliteCommunicationAllowedStateCallbackWrapper,
           SatelliteCommunicationAllowedStateCallback>
           sSatelliteCommunicationAllowedStateCallbackWrapperMap = new ConcurrentHashMap<>();
+
+  private static final ConcurrentHashMap<SatelliteCommunicationAllowedStateCallbackWrapper2,
+          SatelliteCommunicationAllowedStateCallback>
+          sSatelliteCommunicationAllowedStateCallbackWrapperMap2 = new ConcurrentHashMap<>();
+
+  private static final ConcurrentHashMap<SelectedNbIotSatelliteSubscriptionCallbackWrapper,
+          SelectedNbIotSatelliteSubscriptionCallback>
+      sSelectedNbIotSatelliteSubscriptionCallbackWrapperMap = new ConcurrentHashMap<>();
 
   private final SatelliteManager mSatelliteManager;
   private final SubscriptionManager mSubscriptionManager;
@@ -557,6 +570,13 @@ public class SatelliteManagerWrapper {
       boolean isEmergency,
       @NonNull @CallbackExecutor Executor executor,
       @SatelliteResult @NonNull Consumer<Integer> resultListener) {
+    if (mSatelliteManager == null) {
+      logd("requestEnabled: mSatelliteManager is null");
+      executor.execute(() -> Binder.withCleanCallingIdentity(() -> resultListener.accept(
+              SatelliteManager.SATELLITE_RESULT_REQUEST_NOT_SUPPORTED)));
+      return;
+    }
+
     mSatelliteManager.requestEnabled(new EnableRequestAttributes.Builder(enableSatellite)
             .setDemoMode(enableDemoMode)
             .setEmergencyMode(isEmergency)
@@ -567,6 +587,14 @@ public class SatelliteManagerWrapper {
   public void requestIsEnabled(
       @NonNull @CallbackExecutor Executor executor,
       @NonNull OutcomeReceiver<Boolean, SatelliteExceptionWrapper> callback) {
+    if (mSatelliteManager == null) {
+      logd("requestIsEnabled: mSatelliteManager is null");
+      executor.execute(() -> Binder.withCleanCallingIdentity(() -> callback.onError(
+              new SatelliteExceptionWrapper(
+                      SatelliteManager.SATELLITE_RESULT_REQUEST_NOT_SUPPORTED))));
+      return;
+    }
+
     OutcomeReceiver internalCallback =
         new OutcomeReceiver<Boolean, SatelliteException>() {
           @Override
@@ -586,6 +614,14 @@ public class SatelliteManagerWrapper {
   public void requestIsDemoModeEnabled(
       @NonNull @CallbackExecutor Executor executor,
       @NonNull OutcomeReceiver<Boolean, SatelliteExceptionWrapper> callback) {
+    if (mSatelliteManager == null) {
+      logd("requestIsDemoModeEnabled: mSatelliteManager is null");
+      executor.execute(() -> Binder.withCleanCallingIdentity(() -> callback.onError(
+              new SatelliteExceptionWrapper(
+                      SatelliteManager.SATELLITE_RESULT_REQUEST_NOT_SUPPORTED))));
+      return;
+    }
+
     OutcomeReceiver internalCallback =
         new OutcomeReceiver<Boolean, SatelliteException>() {
           @Override
@@ -605,6 +641,14 @@ public class SatelliteManagerWrapper {
   public void requestIsEmergencyModeEnabled(
           @NonNull @CallbackExecutor Executor executor,
           @NonNull OutcomeReceiver<Boolean, SatelliteExceptionWrapper> callback) {
+    if (mSatelliteManager == null) {
+      logd("requestIsEmergencyModeEnabled: mSatelliteManager is null");
+      executor.execute(() -> Binder.withCleanCallingIdentity(() -> callback.onError(
+              new SatelliteExceptionWrapper(
+                      SatelliteManager.SATELLITE_RESULT_REQUEST_NOT_SUPPORTED))));
+      return;
+    }
+
     OutcomeReceiver internalCallback =
         new OutcomeReceiver<Boolean, SatelliteException>() {
           @Override
@@ -624,6 +668,12 @@ public class SatelliteManagerWrapper {
   public void requestIsSupported(
       @NonNull @CallbackExecutor Executor executor,
       @NonNull OutcomeReceiver<Boolean, SatelliteExceptionWrapper> callback) {
+    if (mSatelliteManager == null) {
+      logd("requestIsSupported: mSatelliteManager is null");
+      executor.execute(() -> Binder.withCleanCallingIdentity(() -> callback.onResult(false)));
+      return;
+    }
+
     OutcomeReceiver internalCallback =
         new OutcomeReceiver<Boolean, SatelliteException>() {
           @Override
@@ -643,6 +693,14 @@ public class SatelliteManagerWrapper {
   public void requestCapabilities(
       @NonNull @CallbackExecutor Executor executor,
       @NonNull OutcomeReceiver<SatelliteCapabilitiesWrapper, SatelliteExceptionWrapper> callback) {
+    if (mSatelliteManager == null) {
+      logd("requestCapabilities: mSatelliteManager is null");
+      executor.execute(() -> Binder.withCleanCallingIdentity(() -> callback.onError(
+              new SatelliteExceptionWrapper(
+                      SatelliteManager.SATELLITE_RESULT_REQUEST_NOT_SUPPORTED))));
+      return;
+    }
+
     OutcomeReceiver internalCallback =
         new OutcomeReceiver<SatelliteCapabilities, SatelliteException>() {
           @Override
@@ -675,6 +733,12 @@ public class SatelliteManagerWrapper {
       @NonNull @CallbackExecutor Executor executor,
       @SatelliteResult @NonNull Consumer<Integer> resultListener,
       @NonNull SatelliteTransmissionUpdateCallbackWrapper callback) {
+    if (mSatelliteManager == null) {
+      logd("startTransmissionUpdates: mSatelliteManager is null");
+      executor.execute(() -> Binder.withCleanCallingIdentity(() -> resultListener.accept(
+              SatelliteManager.SATELLITE_RESULT_REQUEST_NOT_SUPPORTED)));
+      return;
+    }
 
     SatelliteTransmissionUpdateCallback internalCallback =
         new SatelliteTransmissionUpdateCallback() {
@@ -729,6 +793,12 @@ public class SatelliteManagerWrapper {
           @NonNull @CallbackExecutor Executor executor,
           @SatelliteResult @NonNull Consumer<Integer> resultListener,
           @NonNull SatelliteTransmissionUpdateCallbackWrapper2 callback) {
+    if (mSatelliteManager == null) {
+      logd("startTransmissionUpdates2: mSatelliteManager is null");
+      executor.execute(() -> Binder.withCleanCallingIdentity(() -> resultListener.accept(
+              SatelliteManager.SATELLITE_RESULT_REQUEST_NOT_SUPPORTED)));
+      return;
+    }
 
     SatelliteTransmissionUpdateCallback internalCallback =
             new SatelliteTransmissionUpdateCallback() {
@@ -787,6 +857,13 @@ public class SatelliteManagerWrapper {
       @NonNull SatelliteTransmissionUpdateCallbackWrapper callback,
       @NonNull @CallbackExecutor Executor executor,
       @SatelliteResult @NonNull Consumer<Integer> resultListener) {
+    if (mSatelliteManager == null) {
+      logd("stopTransmissionUpdates: mSatelliteManager is null");
+      executor.execute(() -> Binder.withCleanCallingIdentity(() -> resultListener.accept(
+              SatelliteManager.SATELLITE_RESULT_REQUEST_NOT_SUPPORTED)));
+      return;
+    }
+
     SatelliteTransmissionUpdateCallback internalCallback =
         sSatelliteTransmissionUpdateCallbackWrapperMap.remove(callback);
     if (internalCallback != null) {
@@ -805,6 +882,13 @@ public class SatelliteManagerWrapper {
           @NonNull SatelliteTransmissionUpdateCallbackWrapper2 callback,
           @NonNull @CallbackExecutor Executor executor,
           @SatelliteResult @NonNull Consumer<Integer> resultListener) {
+    if (mSatelliteManager == null) {
+      logd("stopTransmissionUpdates2: mSatelliteManager is null");
+      executor.execute(() -> Binder.withCleanCallingIdentity(() -> resultListener.accept(
+              SatelliteManager.SATELLITE_RESULT_REQUEST_NOT_SUPPORTED)));
+      return;
+    }
+
     SatelliteTransmissionUpdateCallback internalCallback =
             sSatelliteTransmissionUpdateCallbackWrapperMap2.remove(callback);
     if (internalCallback != null) {
@@ -823,6 +907,13 @@ public class SatelliteManagerWrapper {
       @Nullable CancellationSignal cancellationSignal,
       @NonNull @CallbackExecutor Executor executor,
       @SatelliteResult @NonNull Consumer<Integer> resultListener) {
+    if (mSatelliteManager == null) {
+      logd("provisionService: mSatelliteManager is null");
+      executor.execute(() -> Binder.withCleanCallingIdentity(() -> resultListener.accept(
+              SatelliteManager.SATELLITE_RESULT_REQUEST_NOT_SUPPORTED)));
+      return;
+    }
+
     mSatelliteManager.provisionService(
         token, provisionData, cancellationSignal, executor, resultListener);
   }
@@ -837,6 +928,13 @@ public class SatelliteManagerWrapper {
       @NonNull String token,
       @NonNull @CallbackExecutor Executor executor,
       @SatelliteResult @NonNull Consumer<Integer> resultListener) {
+    if (mSatelliteManager == null) {
+      logd("deprovisionService: mSatelliteManager is null");
+      executor.execute(() -> Binder.withCleanCallingIdentity(() -> resultListener.accept(
+              SatelliteManager.SATELLITE_RESULT_REQUEST_NOT_SUPPORTED)));
+      return;
+    }
+
     mSatelliteManager.deprovisionService(token, executor, resultListener);
   }
 
@@ -845,6 +943,11 @@ public class SatelliteManagerWrapper {
   public int registerForProvisionStateChanged(
       @NonNull @CallbackExecutor Executor executor,
       @NonNull SatelliteProvisionStateCallbackWrapper callback) {
+    if (mSatelliteManager == null) {
+      logd("registerForProvisionStateChanged: mSatelliteManager is null");
+      return SatelliteManagerWrapper.SATELLITE_RESULT_REQUEST_NOT_SUPPORTED;
+    }
+
     SatelliteProvisionStateCallback internalCallback =
         new SatelliteProvisionStateCallback() {
           @Override
@@ -871,6 +974,11 @@ public class SatelliteManagerWrapper {
    */
   public void unregisterForProvisionStateChanged(
       @NonNull SatelliteProvisionStateCallbackWrapper callback) {
+    if (mSatelliteManager == null){
+      logd("unregisterForProvisionStateChanged: mSatelliteManager is null");
+      return;
+    }
+
     SatelliteProvisionStateCallback internalCallback =
         sSatelliteProvisionStateCallbackWrapperMap.remove(callback);
     if (internalCallback != null) {
@@ -882,6 +990,14 @@ public class SatelliteManagerWrapper {
   public void requestIsProvisioned(
       @NonNull @CallbackExecutor Executor executor,
       @NonNull OutcomeReceiver<Boolean, SatelliteExceptionWrapper> callback) {
+    if (mSatelliteManager == null) {
+      logd("requestIsProvisioned: mSatelliteManager is null");
+      executor.execute(() -> Binder.withCleanCallingIdentity(() -> callback.onError(
+              new SatelliteExceptionWrapper(
+                      SatelliteManager.SATELLITE_RESULT_REQUEST_NOT_SUPPORTED))));
+      return;
+    }
+
     OutcomeReceiver internalCallback =
         new OutcomeReceiver<Boolean, SatelliteException>() {
           @Override
@@ -902,6 +1018,11 @@ public class SatelliteManagerWrapper {
   public int registerForModemStateChanged(
       @NonNull @CallbackExecutor Executor executor,
       @NonNull SatelliteModemStateCallbackWrapper callback) {
+    if (mSatelliteManager == null) {
+      logd("registerForModemStateChanged: mSatelliteManager is null");
+      return SatelliteManagerWrapper.SATELLITE_RESULT_REQUEST_NOT_SUPPORTED;
+    }
+
     SatelliteModemStateCallback internalCallback =
         new SatelliteModemStateCallback() {
           public void onSatelliteModemStateChanged(@SatelliteModemState int state) {
@@ -920,6 +1041,11 @@ public class SatelliteManagerWrapper {
   public int registerForModemStateChanged(
           @NonNull @CallbackExecutor Executor executor,
           @NonNull SatelliteModemStateCallbackWrapper2 callback) {
+    if (mSatelliteManager == null) {
+      logd("registerForModemStateChanged: mSatelliteManager is null");
+      return SatelliteManagerWrapper.SATELLITE_RESULT_REQUEST_NOT_SUPPORTED;
+    }
+
     SatelliteModemStateCallback internalCallback =
             new SatelliteModemStateCallback() {
               public void onSatelliteModemStateChanged(@SatelliteModemState int state) {
@@ -951,6 +1077,11 @@ public class SatelliteManagerWrapper {
    */
   public void unregisterForModemStateChanged(
       @NonNull SatelliteModemStateCallbackWrapper callback) {
+    if (mSatelliteManager == null) {
+      logd("unregisterForModemStateChanged: mSatelliteManager is null");
+      return;
+    }
+
     SatelliteModemStateCallback internalCallback = sSatelliteModemStateCallbackWrapperMap.remove(
             callback);
     if (internalCallback != null) {
@@ -964,6 +1095,11 @@ public class SatelliteManagerWrapper {
    */
   public void unregisterForModemStateChanged(
           @NonNull SatelliteModemStateCallbackWrapper2 callback) {
+    if (mSatelliteManager == null) {
+      logd("unregisterForModemStateChanged: mSatelliteManager is null");
+      return;
+    }
+
     SatelliteModemStateCallback internalCallback = sSatelliteModemStateCallbackWrapperMap2.remove(
             callback);
     if (internalCallback != null) {
@@ -976,6 +1112,11 @@ public class SatelliteManagerWrapper {
   public int registerForIncomingDatagram(
       @NonNull @CallbackExecutor Executor executor,
       @NonNull SatelliteDatagramCallbackWrapper callback) {
+    if (mSatelliteManager == null) {
+      logd("registerForIncomingDatagram: mSatelliteManager is null");
+      return SatelliteManagerWrapper.SATELLITE_RESULT_REQUEST_NOT_SUPPORTED;
+    }
+
     SatelliteDatagramCallback internalCallback =
         new SatelliteDatagramCallback() {
           @Override
@@ -1001,6 +1142,11 @@ public class SatelliteManagerWrapper {
    * before, the request will be ignored.
    */
   public void unregisterForIncomingDatagram(@NonNull SatelliteDatagramCallbackWrapper callback) {
+    if (mSatelliteManager == null) {
+      logd("unregisterForIncomingDatagram: mSatelliteManager is null");
+      return;
+    }
+
     SatelliteDatagramCallback internalCallback =
             sSatelliteDatagramCallbackWrapperMap.remove(callback);
     if (internalCallback != null) {
@@ -1101,6 +1247,13 @@ public class SatelliteManagerWrapper {
   public void pollPendingDatagrams(
       @NonNull @CallbackExecutor Executor executor,
       @SatelliteResult @NonNull Consumer<Integer> resultListener) {
+    if (mSatelliteManager == null) {
+      logd("pollPendingDatagrams: mSatelliteManager is null");
+      executor.execute(() -> Binder.withCleanCallingIdentity(() -> resultListener.accept(
+              SatelliteManager.SATELLITE_RESULT_REQUEST_NOT_SUPPORTED)));
+      return;
+    }
+
     mSatelliteManager.pollPendingDatagrams(executor, resultListener);
   }
 
@@ -1117,6 +1270,13 @@ public class SatelliteManagerWrapper {
       boolean needFullScreenPointingUI,
       @NonNull @CallbackExecutor Executor executor,
       @SatelliteResult @NonNull Consumer<Integer> resultListener) {
+    if (mSatelliteManager == null) {
+      logd("sendDatagram: mSatelliteManager is null");
+      executor.execute(() -> Binder.withCleanCallingIdentity(() -> resultListener.accept(
+              SatelliteManager.SATELLITE_RESULT_REQUEST_NOT_SUPPORTED)));
+      return;
+    }
+
     SatelliteDatagram datagramInternal = new SatelliteDatagram(datagram.getSatelliteDatagram());
     mSatelliteManager.sendDatagram(
         datagramType, datagramInternal, needFullScreenPointingUI, executor, resultListener);
@@ -1126,6 +1286,14 @@ public class SatelliteManagerWrapper {
   public void requestIsCommunicationAllowedForCurrentLocation(
       @NonNull @CallbackExecutor Executor executor,
       @NonNull OutcomeReceiver<Boolean, SatelliteExceptionWrapper> callback) {
+    if (mSatelliteManager == null) {
+      logd("requestIsCommunicationAllowedForCurrentLocation: mSatelliteManager is null");
+      executor.execute(() -> Binder.withCleanCallingIdentity(() -> callback.onError(
+              new SatelliteExceptionWrapper(
+                      SatelliteManager.SATELLITE_RESULT_REQUEST_NOT_SUPPORTED))));
+      return;
+    }
+
     OutcomeReceiver internalCallback =
         new OutcomeReceiver<Boolean, SatelliteException>() {
           @Override
@@ -1142,6 +1310,37 @@ public class SatelliteManagerWrapper {
         executor, internalCallback);
   }
 
+  /** Request to get satellite access configuration for the current location. */
+  public void requestSatelliteAccessConfigurationForCurrentLocation(
+          @NonNull @CallbackExecutor Executor executor,
+          @NonNull OutcomeReceiver<SatelliteAccessConfigurationWrapper, SatelliteExceptionWrapper> callback) {
+    if (mSatelliteManager == null) {
+      logd("requestSatelliteAccessConfigurationForCurrentLocation: mSatelliteManager is null");
+      executor.execute(() -> Binder.withCleanCallingIdentity(() -> callback.onError(
+              new SatelliteExceptionWrapper(
+                      SatelliteManager.SATELLITE_RESULT_REQUEST_NOT_SUPPORTED))));
+      return;
+    }
+
+    OutcomeReceiver internalCallback =
+            new OutcomeReceiver<SatelliteAccessConfiguration, SatelliteException>() {
+              @Override
+              public void onResult(SatelliteAccessConfiguration result) {
+                callback.onResult(new SatelliteAccessConfigurationWrapper(
+                        getSatelliteInfoListWrapper(result.getSatelliteInfos()),
+                        result.getTagIds()));
+              }
+
+              @Override
+              public void onError(SatelliteException exception) {
+                callback.onError(new SatelliteExceptionWrapper(exception.getErrorCode()));
+              }
+            };
+
+    mSatelliteManager.requestSatelliteAccessConfigurationForCurrentLocation(executor,
+            internalCallback);
+  }
+
   /**
    * Request to get the duration in seconds after which the satellite will be visible. This will be
    * {@link Duration#ZERO} if the satellite is currently visible.
@@ -1149,6 +1348,14 @@ public class SatelliteManagerWrapper {
   public void requestTimeForNextSatelliteVisibility(
       @NonNull @CallbackExecutor Executor executor,
       @NonNull OutcomeReceiver<Duration, SatelliteExceptionWrapper> callback) {
+    if (mSatelliteManager == null) {
+      logd("requestTimeForNextSatelliteVisibility: mSatelliteManager is null");
+      executor.execute(() -> Binder.withCleanCallingIdentity(() -> callback.onError(
+              new SatelliteExceptionWrapper(
+                      SatelliteManager.SATELLITE_RESULT_REQUEST_NOT_SUPPORTED))));
+      return;
+    }
+
     OutcomeReceiver internalCallback =
         new OutcomeReceiver<Duration, SatelliteException>() {
           @Override
@@ -1165,9 +1372,82 @@ public class SatelliteManagerWrapper {
   }
 
   /**
+   * Request to get the currently selected satellite subscription id as an {@link Integer}.
+   */
+  public void requestSelectedNbIotSatelliteSubscriptionId(
+      @NonNull @CallbackExecutor Executor executor,
+      @NonNull OutcomeReceiver<Integer, SatelliteExceptionWrapper> callback) {
+    if (mSatelliteManager == null) {
+      logd("requestSelectedNbIotSatelliteSubscriptionId: mSatelliteManager is null");
+      executor.execute(() -> Binder.withCleanCallingIdentity(() -> callback.onError(
+              new SatelliteExceptionWrapper(
+                      SatelliteManager.SATELLITE_RESULT_REQUEST_NOT_SUPPORTED))));
+      return;
+    }
+
+    OutcomeReceiver internalCallback =
+        new OutcomeReceiver<Integer, SatelliteException>() {
+          @Override
+          public void onResult(Integer result) {
+            callback.onResult(result);
+          }
+
+          @Override
+          public void onError(SatelliteException exception) {
+            callback.onError(new SatelliteExceptionWrapper(exception.getErrorCode()));
+          }
+        };
+    mSatelliteManager.requestSelectedNbIotSatelliteSubscriptionId(executor, internalCallback);
+  }
+
+    /**
+     * Wrapper API to register for selected satellite subscription changed event from the satellite
+     * service.
+     *
+     * @param executor The executor on which the callback will be called.
+     * @param callback The callback to handle the selected satellite subscription changed event.
+     */
+    @SatelliteResult public int registerForSelectedNbIotSatelliteSubscriptionChanged(
+            @NonNull @CallbackExecutor Executor executor,
+            @NonNull SelectedNbIotSatelliteSubscriptionCallbackWrapper callback) {
+        SelectedNbIotSatelliteSubscriptionCallback internalCallback =
+                selectedSubId -> callback.onSelectedNbIotSatelliteSubscriptionChanged(
+                        selectedSubId);
+    sSelectedNbIotSatelliteSubscriptionCallbackWrapperMap.put(callback, internalCallback);
+    return mSatelliteManager.registerForSelectedNbIotSatelliteSubscriptionChanged(executor,
+            internalCallback);
+    }
+
+    /**
+     * Wrapper API to unregisters for selected satellite subscription changed event from the
+     * satellite service. If callback was not registered before, the request will be ignored.
+     *
+     * @param callback The callback that was passed to {@link
+     *     #registerForSelectedNbIotSatelliteSubscriptionChanged(Executor,
+     *     SelectedNbIotSatelliteSubscriptionCallbackWrapper)}.
+     */
+    public void unregisterForSelectedNbIotSatelliteSubscriptionChanged(
+            @NonNull SelectedNbIotSatelliteSubscriptionCallbackWrapper callback) {
+        SelectedNbIotSatelliteSubscriptionCallback internalCallback =
+                sSelectedNbIotSatelliteSubscriptionCallbackWrapperMap.remove(callback);
+        if (internalCallback != null) {
+            mSatelliteManager.unregisterForSelectedNbIotSatelliteSubscriptionChanged(
+                    internalCallback);
+        } else {
+            logd("unregisterForSelectedNbIotSatelliteSubscriptionChanged: internalCallback is"
+                    + " null");
+        }
+    }
+
+  /**
    * Inform whether the device is aligned with the satellite for demo mode.
    */
   public void setDeviceAlignedWithSatellite(boolean isAligned) {
+    if (mSatelliteManager == null) {
+      logd("setDeviceAlignedWithSatellite: mSatelliteManager is null");
+      return;
+    }
+
     mSatelliteManager.setDeviceAlignedWithSatellite(isAligned);
   }
 
@@ -1196,6 +1476,14 @@ public class SatelliteManagerWrapper {
   public void requestNtnSignalStrength(
       @NonNull @CallbackExecutor Executor executor,
       @NonNull OutcomeReceiver<NtnSignalStrengthWrapper, SatelliteExceptionWrapper> callback) {
+    if (mSatelliteManager == null) {
+      logd("requestNtnSignalStrength: mSatelliteManager is null");
+      executor.execute(() -> Binder.withCleanCallingIdentity(() -> callback.onError(
+              new SatelliteExceptionWrapper(
+                      SatelliteManager.SATELLITE_RESULT_REQUEST_NOT_SUPPORTED))));
+      return;
+    }
+
     OutcomeReceiver internalCallback =
             new OutcomeReceiver<NtnSignalStrength, SatelliteException>() {
               @Override
@@ -1216,6 +1504,11 @@ public class SatelliteManagerWrapper {
   public void registerForNtnSignalStrengthChanged(
       @NonNull @CallbackExecutor Executor executor,
       @NonNull NtnSignalStrengthCallbackWrapper callback) {
+    if (mSatelliteManager == null){
+      logd("registerForNtnSignalStrengthChanged: mSatelliteManager is null");
+      return;
+    }
+
     NtnSignalStrengthCallback internalCallback =
         new NtnSignalStrengthCallback() {
           @Override
@@ -1235,6 +1528,11 @@ public class SatelliteManagerWrapper {
   @FlaggedApi(Flags.FLAG_OEM_ENABLED_SATELLITE_FLAG)
   public void unregisterForNtnSignalStrengthChanged(
       @NonNull NtnSignalStrengthCallbackWrapper callback) {
+    if (mSatelliteManager == null){
+      logd("unregisterForNtnSignalStrengthChanged: mSatelliteManager is null");
+      return;
+    }
+
     NtnSignalStrengthCallback internalCallback =
             sNtnSignalStrengthCallbackWrapperMap.remove(callback);
     if (internalCallback != null) {
@@ -1279,6 +1577,11 @@ public class SatelliteManagerWrapper {
   public int registerForCapabilitiesChanged(
           @NonNull @CallbackExecutor Executor executor,
           @NonNull SatelliteCapabilitiesCallbackWrapper callback) {
+    if (mSatelliteManager == null) {
+      logd("requestForCapabilitiesChanged: mSatelliteManager is null");
+      return SatelliteManager.SATELLITE_RESULT_REQUEST_NOT_SUPPORTED;
+    }
+
     SatelliteCapabilitiesCallback internalCallback =
             capabilities -> callback.onSatelliteCapabilitiesChanged(
                     new SatelliteCapabilitiesWrapper(
@@ -1300,6 +1603,11 @@ public class SatelliteManagerWrapper {
   @FlaggedApi(Flags.FLAG_OEM_ENABLED_SATELLITE_FLAG)
   public void unregisterForCapabilitiesChanged(
           @NonNull SatelliteCapabilitiesCallbackWrapper callback) {
+    if (mSatelliteManager == null) {
+      logd("unregisterForCapabilitiesChanged: mSatelliteManager is null");
+      return;
+    }
+
     SatelliteCapabilitiesCallback internalCallback =
             sSatelliteCapabilitiesCallbackWrapperMap.remove(callback);
     if (internalCallback != null) {
@@ -1413,6 +1721,13 @@ public class SatelliteManagerWrapper {
   public void requestAttachEnabledForCarrier(int subId, boolean enableSatellite,
           @NonNull @CallbackExecutor Executor executor,
           @SatelliteResult @NonNull Consumer<Integer> resultListener) {
+    if (mSatelliteManager == null) {
+      logd("requestAttachEnabledForCarrier: mSatelliteManager is null");
+      executor.execute(() -> Binder.withCleanCallingIdentity(() -> resultListener.accept(
+              SatelliteManager.SATELLITE_RESULT_REQUEST_NOT_SUPPORTED)));
+      return;
+    }
+
     mSatelliteManager.requestAttachEnabledForCarrier(subId, enableSatellite, executor,
             resultListener);
   }
@@ -1438,6 +1753,14 @@ public class SatelliteManagerWrapper {
   public void requestIsAttachEnabledForCarrier(int subId,
           @NonNull @CallbackExecutor Executor executor,
           @NonNull OutcomeReceiver<Boolean, SatelliteExceptionWrapper> callback) {
+    if (mSatelliteManager == null) {
+      logd("requestIsAttachEnabledForCarrier: mSatelliteManager is null");
+      executor.execute(() -> Binder.withCleanCallingIdentity(() -> callback.onError(
+              new SatelliteExceptionWrapper(
+                      SatelliteManager.SATELLITE_RESULT_REQUEST_NOT_SUPPORTED))));
+      return;
+    }
+
     OutcomeReceiver internalCallback =
             new OutcomeReceiver<Boolean, SatelliteException>() {
               @Override
@@ -1470,6 +1793,13 @@ public class SatelliteManagerWrapper {
           @SatelliteCommunicationRestrictionReason int reason,
           @NonNull @CallbackExecutor Executor executor,
           @SatelliteResult @NonNull Consumer<Integer> resultListener) {
+    if (mSatelliteManager == null) {
+      logd("addAttachRestrictionForCarrier: mSatelliteManager is null");
+      executor.execute(() -> Binder.withCleanCallingIdentity(() -> resultListener.accept(
+              SatelliteManager.SATELLITE_RESULT_REQUEST_NOT_SUPPORTED)));
+      return;
+    }
+
     mSatelliteManager.addAttachRestrictionForCarrier(subId, reason, executor, resultListener);
   }
 
@@ -1490,6 +1820,13 @@ public class SatelliteManagerWrapper {
           @SatelliteCommunicationRestrictionReason int reason,
           @NonNull @CallbackExecutor Executor executor,
           @SatelliteResult @NonNull Consumer<Integer> resultListener) {
+    if (mSatelliteManager == null) {
+      logd("removeAttachRestrictionForCarrier: mSatelliteManager is null");
+      executor.execute(() -> Binder.withCleanCallingIdentity(() -> resultListener.accept(
+              SatelliteManager.SATELLITE_RESULT_REQUEST_NOT_SUPPORTED)));
+      return;
+    }
+
     mSatelliteManager.removeAttachRestrictionForCarrier(subId, reason, executor, resultListener);
   }
 
@@ -1506,6 +1843,11 @@ public class SatelliteManagerWrapper {
    */
   @SatelliteCommunicationRestrictionReason
   @NonNull public Set<Integer> getAttachRestrictionReasonsForCarrier(int subId) {
+    if (mSatelliteManager == null) {
+      logd("getAttachRestrictionReasonsForCarrier: mSatelliteManager is null");
+      return Collections.emptySet();
+    }
+
     return mSatelliteManager.getAttachRestrictionReasonsForCarrier(subId);
   }
 
@@ -1518,6 +1860,11 @@ public class SatelliteManagerWrapper {
    * be returned.
    */
   @NonNull public List<String> getSatellitePlmnsForCarrier(int subId) {
+    if (mSatelliteManager == null) {
+      logd("getSatellitePlmnsForCarrier: mSatelliteManager is null");
+      return new ArrayList<>();
+    }
+
     return mSatelliteManager.getSatellitePlmnsForCarrier(subId);
   }
 
@@ -1526,6 +1873,11 @@ public class SatelliteManagerWrapper {
   public int registerForSupportedStateChanged(
           @NonNull @CallbackExecutor Executor executor,
           @NonNull SatelliteSupportedStateCallbackWrapper callback) {
+    if (mSatelliteManager == null) {
+      logd("registerForSupportedStateChanged: mSatelliteManager is null");
+      return SatelliteManagerWrapper.SATELLITE_RESULT_REQUEST_NOT_SUPPORTED;
+    }
+
     SatelliteSupportedStateCallback internalCallback =
             new SatelliteSupportedStateCallback() {
               @Override
@@ -1544,6 +1896,14 @@ public class SatelliteManagerWrapper {
           @NonNull @CallbackExecutor Executor executor,
           @NonNull OutcomeReceiver<SatelliteSessionStatsWrapper,
                   SatelliteExceptionWrapper> callback) {
+    if (mSatelliteManager == null) {
+      logd("requestSessionStats: mSatelliteManager is null");
+      executor.execute(() -> Binder.withCleanCallingIdentity(() -> callback.onError(
+              new SatelliteExceptionWrapper(
+                      SatelliteManager.SATELLITE_RESULT_REQUEST_NOT_SUPPORTED))));
+      return;
+    }
+
     OutcomeReceiver internalCallback =
             new OutcomeReceiver<SatelliteSessionStats, SatelliteException>() {
               @Override
@@ -1577,6 +1937,11 @@ public class SatelliteManagerWrapper {
    */
   public void unregisterForSupportedStateChanged(
           @NonNull SatelliteSupportedStateCallbackWrapper callback) {
+    if (mSatelliteManager == null) {
+      logd("unregisterForSupportedStateChanged: mSatelliteManager is null");
+      return;
+    }
+
     SatelliteSupportedStateCallback internalCallback =
             sSatelliteSupportedStateCallbackWrapperMap.remove(callback);
     if (internalCallback != null) {
@@ -1589,6 +1954,11 @@ public class SatelliteManagerWrapper {
   public int registerForCommunicationAllowedStateChanged(
           @NonNull @CallbackExecutor Executor executor,
           @NonNull SatelliteCommunicationAllowedStateCallbackWrapper callback) {
+    if (mSatelliteManager == null) {
+      logd("requestForCommunicationAllowedStateChanged: mSatelliteManager is null");
+      return SatelliteManagerWrapper.SATELLITE_RESULT_REQUEST_NOT_SUPPORTED;
+    }
+
     SatelliteCommunicationAllowedStateCallback internalCallback =
             new SatelliteCommunicationAllowedStateCallback() {
               @Override
@@ -1602,14 +1972,91 @@ public class SatelliteManagerWrapper {
     return result;
   }
 
+  @NonNull
+  private List<SatelliteInfoWrapper> getSatelliteInfoListWrapper(@NonNull
+          List<SatelliteInfo> satelliteInfoList) {
+      List<SatelliteInfoWrapper> satelliteInfoWrapperList = new ArrayList<>();
+
+      for (SatelliteInfo info : satelliteInfoList) {
+          SatellitePositionWrapper satellitePositionWrapper = new SatellitePositionWrapper(
+                      info.getSatellitePosition().getLongitudeDegrees(),
+                      info.getSatellitePosition().getAltitudeKm());
+
+          List<EarfcnRangeWrapper> earfcnRangeWrapperList = new ArrayList<>();
+          for (EarfcnRange range : info.getEarfcnRanges()) {
+              earfcnRangeWrapperList.add(new EarfcnRangeWrapper(
+                      range.getStartEarfcn(), range.getEndEarfcn()));
+          }
+
+          SatelliteInfoWrapper satelliteInfoWrapper = new SatelliteInfoWrapper(
+                  info.getSatelliteId(), satellitePositionWrapper,
+                  info.getBands(), earfcnRangeWrapperList);
+
+          satelliteInfoWrapperList.add(satelliteInfoWrapper);
+      }
+      return satelliteInfoWrapperList;
+  }
+
+  /** Registers for the satellite communication allowed state changed. */
+  @SatelliteResult
+  public int registerForCommunicationAllowedStateChanged2(
+          @NonNull @CallbackExecutor Executor executor,
+          @NonNull SatelliteCommunicationAllowedStateCallbackWrapper2 callback) {
+    if (mSatelliteManager == null) {
+      logd("registerForCommunicationAllowedStateChanged2: mSatelliteManager is null");
+      return SatelliteManagerWrapper.SATELLITE_RESULT_REQUEST_NOT_SUPPORTED;
+    }
+
+    SatelliteCommunicationAllowedStateCallback internalCallback =
+            new SatelliteCommunicationAllowedStateCallback() {
+              @Override
+              public void onSatelliteCommunicationAllowedStateChanged(boolean supported) {
+                callback.onSatelliteCommunicationAllowedStateChanged(supported);
+              }
+
+              @Override
+              public void onSatelliteAccessConfigurationChanged(SatelliteAccessConfiguration
+                      config) {
+                if (config != null) {
+                  callback.onSatelliteAccessConfigurationChanged(
+                          new SatelliteAccessConfigurationWrapper(
+                                  getSatelliteInfoListWrapper(config.getSatelliteInfos()),
+                                  config.getTagIds()));
+                }
+              }
+            };
+    sSatelliteCommunicationAllowedStateCallbackWrapperMap2.put(callback, internalCallback);
+    int result = mSatelliteManager.registerForCommunicationAllowedStateChanged(executor,
+            internalCallback);
+    return result;
+  }
+
   /**
    * Unregisters for the satellite communication allowed state changed. If callback was not
    * registered before, the request will be ignored.
    */
   public void unregisterForCommunicationAllowedStateChanged(
           @NonNull SatelliteCommunicationAllowedStateCallbackWrapper callback) {
+    if (mSatelliteManager == null) {
+      logd("unregisterForCommunicationAllowedStateChanged: mSatelliteManager is null");
+      return;
+    }
+
     SatelliteCommunicationAllowedStateCallback internalCallback =
             sSatelliteCommunicationAllowedStateCallbackWrapperMap.remove(callback);
+    if (internalCallback != null) {
+      mSatelliteManager.unregisterForCommunicationAllowedStateChanged(internalCallback);
+    }
+  }
+
+  /**
+   * Unregisters for the satellite communication allowed state changed. If callback was not
+   * registered before, the request will be ignored.
+   */
+  public void unregisterForCommunicationAllowedStateChanged2(
+          @NonNull SatelliteCommunicationAllowedStateCallbackWrapper2 callback) {
+    SatelliteCommunicationAllowedStateCallback internalCallback =
+            sSatelliteCommunicationAllowedStateCallbackWrapperMap2.remove(callback);
     if (internalCallback != null) {
       mSatelliteManager.unregisterForCommunicationAllowedStateChanged(internalCallback);
     }
@@ -1655,6 +2102,14 @@ public class SatelliteManagerWrapper {
           @NonNull @CallbackExecutor Executor executor,
           @NonNull OutcomeReceiver<List<SatelliteSubscriberProvisionStatusWrapper>,
                   SatelliteExceptionWrapper> callback) {
+    if (mSatelliteManager == null) {
+      logd("requestSatelliteSubscriberProvisionStatus: mSatelliteManager is null");
+      executor.execute(() -> Binder.withCleanCallingIdentity(() -> callback.onError(
+              new SatelliteExceptionWrapper(
+                      SatelliteManager.SATELLITE_RESULT_REQUEST_NOT_SUPPORTED))));
+      return;
+    }
+
     Objects.requireNonNull(executor);
     Objects.requireNonNull(callback);
 
@@ -1684,6 +2139,14 @@ public class SatelliteManagerWrapper {
   public void provisionSatellite(@NonNull List<SatelliteSubscriberInfoWrapper> list,
           @NonNull @CallbackExecutor Executor executor,
           @NonNull OutcomeReceiver<Boolean, SatelliteExceptionWrapper> callback) {
+    if (mSatelliteManager == null) {
+      logd("provisionSatellite: mSatelliteManager is null");
+      executor.execute(() -> Binder.withCleanCallingIdentity(() -> callback.onError(
+              new SatelliteExceptionWrapper(
+                      SatelliteManager.SATELLITE_RESULT_REQUEST_NOT_SUPPORTED))));
+      return;
+    }
+
     OutcomeReceiver internalCallback =
             new OutcomeReceiver<Boolean, SatelliteException>() {
               @Override
@@ -1726,6 +2189,11 @@ public class SatelliteManagerWrapper {
   }
 
   public boolean isSatelliteSubscriberIdSupported() {
+    if (mSatelliteManager == null) {
+      logd("isSatelliteSubscriberIdSupported: mSatelliteManager is null");
+      return false;
+    }
+
     try {
       final String methodName = "requestSatelliteSubscriberProvisionStatus";
       Method method = mSatelliteManager.getClass().getMethod(methodName, Executor.class,
@@ -1747,6 +2215,14 @@ public class SatelliteManagerWrapper {
   public void deprovisionSatellite(@NonNull List<SatelliteSubscriberInfoWrapper> list,
           @NonNull @CallbackExecutor Executor executor,
           @NonNull OutcomeReceiver<Boolean, SatelliteExceptionWrapper> callback) {
+    if (mSatelliteManager == null) {
+      logd("deprovisionSatellite: mSatelliteManager is null");
+      executor.execute(() -> Binder.withCleanCallingIdentity(() -> callback.onError(
+              new SatelliteExceptionWrapper(
+                      SatelliteManager.SATELLITE_RESULT_REQUEST_NOT_SUPPORTED))));
+      return;
+    }
+
     OutcomeReceiver internalCallback =
             new OutcomeReceiver<Boolean, SatelliteException>() {
               @Override
@@ -1766,6 +2242,23 @@ public class SatelliteManagerWrapper {
                     .setSubId(info.getSubId()).setSubscriberIdType(info.getSubscriberIdType())
                     .build())
             .collect(Collectors.toList()), executor, internalCallback);
+  }
+
+  /**
+   * Inform whether application supports NTN SMS in satellite mode.
+   *
+   * This method is used by default messaging application to inform framework whether it supports
+   * NTN SMS or not.
+   *
+   * @param ntnSmsSupported {@code true} If application supports NTN SMS, else {@code false}.
+   */
+  public void setNtnSmsSupported(boolean ntnSmsSupported) {
+    if (mSatelliteManager == null) {
+      logd("setNtnSmsSupported: mSatelliteManager is null");
+      return;
+    }
+
+    mSatelliteManager.setNtnSmsSupported(ntnSmsSupported);
   }
 
   @Nullable
