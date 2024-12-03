@@ -84,6 +84,8 @@ import java.util.stream.Collectors;
 public class SatelliteManagerWrapper {
   private static final String TAG = "SatelliteManagerWrapper";
 
+  private static final int VERSION = 1;
+
   private static final ConcurrentHashMap<
       SatelliteDatagramCallbackWrapper, SatelliteDatagramCallback>
       sSatelliteDatagramCallbackWrapperMap = new ConcurrentHashMap<>();
@@ -557,6 +559,14 @@ public class SatelliteManagerWrapper {
     public int getErrorCode() {
       return mErrorCode;
     }
+  }
+
+  /**
+   * Returns the current version of the satellite wrapper. Versions start at 1.
+   * There is no to explicit versioning support before the first version.
+   */
+  public int getVersion() {
+    return VERSION;
   }
 
   /**
