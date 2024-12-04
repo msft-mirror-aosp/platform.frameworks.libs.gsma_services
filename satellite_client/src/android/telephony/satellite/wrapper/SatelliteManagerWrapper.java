@@ -84,6 +84,8 @@ import java.util.stream.Collectors;
 public class SatelliteManagerWrapper {
   private static final String TAG = "SatelliteManagerWrapper";
 
+  private static final int VERSION = 1;
+
   private static final ConcurrentHashMap<
       SatelliteDatagramCallbackWrapper, SatelliteDatagramCallback>
       sSatelliteDatagramCallbackWrapperMap = new ConcurrentHashMap<>();
@@ -557,6 +559,14 @@ public class SatelliteManagerWrapper {
     public int getErrorCode() {
       return mErrorCode;
     }
+  }
+
+  /**
+   * Returns the current version of the satellite wrapper. Versions start at 1.
+   * There is no to explicit versioning support before the first version.
+   */
+  public int getVersion() {
+    return VERSION;
   }
 
   /**
@@ -1368,6 +1378,35 @@ public class SatelliteManagerWrapper {
           }
         };
     mSatelliteManager.requestTimeForNextSatelliteVisibility(executor, internalCallback);
+  }
+
+  /**
+   * Request to get the name to display for Satellite as a {@link String}.
+   */
+  public void requestSatelliteDisplayName(
+          @NonNull @CallbackExecutor Executor executor,
+          @NonNull OutcomeReceiver<String, SatelliteExceptionWrapper> callback) {
+    if (mSatelliteManager == null) {
+      logd("requestSatelliteDisplayName: mSatelliteManager is null");
+      executor.execute(() -> Binder.withCleanCallingIdentity(() -> callback.onError(
+              new SatelliteExceptionWrapper(
+                      SatelliteManager.SATELLITE_RESULT_REQUEST_NOT_SUPPORTED))));
+      return;
+    }
+
+    OutcomeReceiver internalCallback =
+            new OutcomeReceiver<String, SatelliteException>() {
+              @Override
+              public void onResult(String result) {
+                callback.onResult(result);
+              }
+
+              @Override
+              public void onError(SatelliteException exception) {
+                callback.onError(new SatelliteExceptionWrapper(exception.getErrorCode()));
+              }
+            };
+    mSatelliteManager.requestSatelliteDisplayName(executor, internalCallback);
   }
 
   /**
