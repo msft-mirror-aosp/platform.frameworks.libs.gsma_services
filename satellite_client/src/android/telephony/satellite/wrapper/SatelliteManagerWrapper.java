@@ -1385,7 +1385,7 @@ public class SatelliteManagerWrapper {
    */
   public void requestSatelliteDisplayName(
           @NonNull @CallbackExecutor Executor executor,
-          @NonNull OutcomeReceiver<String, SatelliteExceptionWrapper> callback) {
+          @NonNull OutcomeReceiver<CharSequence, SatelliteExceptionWrapper> callback) {
     if (mSatelliteManager == null) {
       logd("requestSatelliteDisplayName: mSatelliteManager is null");
       executor.execute(() -> Binder.withCleanCallingIdentity(() -> callback.onError(
@@ -1395,9 +1395,9 @@ public class SatelliteManagerWrapper {
     }
 
     OutcomeReceiver internalCallback =
-            new OutcomeReceiver<String, SatelliteException>() {
+            new OutcomeReceiver<CharSequence, SatelliteException>() {
               @Override
-              public void onResult(String result) {
+              public void onResult(CharSequence result) {
                 callback.onResult(result);
               }
 
