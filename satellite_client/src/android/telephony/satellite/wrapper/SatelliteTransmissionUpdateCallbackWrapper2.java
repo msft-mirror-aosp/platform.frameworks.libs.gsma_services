@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023 The Android Open Source Project
+ * Copyright (C) 2024 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,13 +22,13 @@ import android.annotation.NonNull;
  * A callback class for monitoring satellite position update and datagram transfer state change
  * events.
  */
-public interface SatelliteTransmissionUpdateCallbackWrapper {
+public interface SatelliteTransmissionUpdateCallbackWrapper2 {
   /**
    * Called when the satellite position changed.
    *
    * @param pointingInfo The pointing info containing the satellite location.
    */
-  void onSatellitePositionChanged(@NonNull PointingInfoWrapper pointingInfo);
+  default void onSatellitePositionChanged(@NonNull PointingInfoWrapper pointingInfo) {}
 
   /**
    * Called when satellite datagram send state changed.
@@ -37,10 +37,10 @@ public interface SatelliteTransmissionUpdateCallbackWrapper {
    * @param sendPendingCount The number of datagrams that are currently being sent.
    * @param errorCode If datagram transfer failed, the reason for failure.
    */
-  void onSendDatagramStateChanged(
+  default void onSendDatagramStateChanged(
       @SatelliteManagerWrapper.SatelliteDatagramTransferState int state,
       int sendPendingCount,
-      @SatelliteManagerWrapper.SatelliteResult int errorCode);
+      @SatelliteManagerWrapper.SatelliteResult int errorCode) {}
 
   /**
    * Called when satellite datagram send state changed.
@@ -63,8 +63,15 @@ public interface SatelliteTransmissionUpdateCallbackWrapper {
    * @param receivePendingCount The number of datagrams that are currently pending to be received.
    * @param errorCode If datagram transfer failed, the reason for failure.
    */
-  void onReceiveDatagramStateChanged(
+  default void onReceiveDatagramStateChanged(
       @SatelliteManagerWrapper.SatelliteDatagramTransferState int state,
       int receivePendingCount,
-      @SatelliteManagerWrapper.SatelliteResult int errorCode);
+      @SatelliteManagerWrapper.SatelliteResult int errorCode) {}
+
+  /**
+   * Called when framework receives a request to send a datagram.
+   *
+   * @param datagramType The type of the requested datagram.
+   */
+  default void onSendDatagramRequested(@SatelliteManagerWrapper.DatagramType int datagramType) {}
 }
