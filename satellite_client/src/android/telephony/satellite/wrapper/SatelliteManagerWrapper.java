@@ -44,7 +44,7 @@ import android.telephony.satellite.PointingInfo;
 import android.telephony.satellite.SatelliteAccessConfiguration;
 import android.telephony.satellite.SatelliteCapabilities;
 import android.telephony.satellite.SatelliteCapabilitiesCallback;
-import android.telephony.satellite.SatelliteCommunicationAllowedStateCallback;
+import android.telephony.satellite.SatelliteCommunicationAccessStateCallback;
 import android.telephony.satellite.SatelliteDatagram;
 import android.telephony.satellite.SatelliteDatagramCallback;
 import android.telephony.satellite.SatelliteInfo;
@@ -130,11 +130,11 @@ public class SatelliteManagerWrapper {
           sCarrierRoamingNtnModeListenerWrapperMap2 = new ConcurrentHashMap<>();
 
   private static final ConcurrentHashMap<SatelliteCommunicationAllowedStateCallbackWrapper,
-          SatelliteCommunicationAllowedStateCallback>
+          SatelliteCommunicationAccessStateCallback>
           sSatelliteCommunicationAllowedStateCallbackWrapperMap = new ConcurrentHashMap<>();
 
   private static final ConcurrentHashMap<SatelliteCommunicationAllowedStateCallbackWrapper2,
-          SatelliteCommunicationAllowedStateCallback>
+          SatelliteCommunicationAccessStateCallback>
           sSatelliteCommunicationAllowedStateCallbackWrapperMap2 = new ConcurrentHashMap<>();
 
   private static final ConcurrentHashMap<SelectedNbIotSatelliteSubscriptionCallbackWrapper,
@@ -1164,7 +1164,7 @@ public class SatelliteManagerWrapper {
   }
 
   private class CarrierRoamingNtnModeListener extends TelephonyCallback
-          implements TelephonyCallback.CarrierRoamingNtnModeListener {
+          implements TelephonyCallback.CarrierRoamingNtnListener {
 
     private CarrierRoamingNtnModeListenerWrapper mListenerWrapper;
     private CarrierRoamingNtnModeListenerWrapper2 mListenerWrapper2;
@@ -1195,12 +1195,6 @@ public class SatelliteManagerWrapper {
       if (mListenerWrapper2 != null) {
         mListenerWrapper2.onCarrierRoamingNtnEligibleStateChanged(eligible);
       }
-    }
-
-    @Override
-    public void onCarrierRoamingNtnAvailableServicesChanged(
-            @NetworkRegistrationInfo.ServiceType int[] availableServices) {
-      logd("onCarrierRoamingNtnAvailableServicesChanged");
     }
   }
 
@@ -2050,15 +2044,15 @@ public class SatelliteManagerWrapper {
       return SatelliteManagerWrapper.SATELLITE_RESULT_REQUEST_NOT_SUPPORTED;
     }
 
-    SatelliteCommunicationAllowedStateCallback internalCallback =
-            new SatelliteCommunicationAllowedStateCallback() {
+    SatelliteCommunicationAccessStateCallback internalCallback =
+            new SatelliteCommunicationAccessStateCallback() {
               @Override
-              public void onSatelliteCommunicationAllowedStateChanged(boolean supported) {
+              public void onAccessAllowedStateChanged(boolean supported) {
                 callback.onSatelliteCommunicationAllowedStateChanged(supported);
               }
             };
     sSatelliteCommunicationAllowedStateCallbackWrapperMap.put(callback, internalCallback);
-    int result = mSatelliteManager.registerForCommunicationAllowedStateChanged(executor,
+    int result = mSatelliteManager.registerForCommunicationAccessStateChanged(executor,
             internalCallback);
     return result;
   }
@@ -2098,15 +2092,15 @@ public class SatelliteManagerWrapper {
       return SatelliteManagerWrapper.SATELLITE_RESULT_REQUEST_NOT_SUPPORTED;
     }
 
-    SatelliteCommunicationAllowedStateCallback internalCallback =
-            new SatelliteCommunicationAllowedStateCallback() {
+    SatelliteCommunicationAccessStateCallback internalCallback =
+            new SatelliteCommunicationAccessStateCallback() {
               @Override
-              public void onSatelliteCommunicationAllowedStateChanged(boolean supported) {
+              public void onAccessAllowedStateChanged(boolean supported) {
                 callback.onSatelliteCommunicationAllowedStateChanged(supported);
               }
 
               @Override
-              public void onSatelliteAccessConfigurationChanged(SatelliteAccessConfiguration
+              public void onAccessConfigurationChanged(SatelliteAccessConfiguration
                       config) {
                 if (config != null) {
                   callback.onSatelliteAccessConfigurationChanged(
@@ -2117,7 +2111,7 @@ public class SatelliteManagerWrapper {
               }
             };
     sSatelliteCommunicationAllowedStateCallbackWrapperMap2.put(callback, internalCallback);
-    int result = mSatelliteManager.registerForCommunicationAllowedStateChanged(executor,
+    int result = mSatelliteManager.registerForCommunicationAccessStateChanged(executor,
             internalCallback);
     return result;
   }
@@ -2133,10 +2127,10 @@ public class SatelliteManagerWrapper {
       return;
     }
 
-    SatelliteCommunicationAllowedStateCallback internalCallback =
+    SatelliteCommunicationAccessStateCallback internalCallback =
             sSatelliteCommunicationAllowedStateCallbackWrapperMap.remove(callback);
     if (internalCallback != null) {
-      mSatelliteManager.unregisterForCommunicationAllowedStateChanged(internalCallback);
+      mSatelliteManager.unregisterForCommunicationAccessStateChanged(internalCallback);
     }
   }
 
@@ -2146,10 +2140,10 @@ public class SatelliteManagerWrapper {
    */
   public void unregisterForCommunicationAllowedStateChanged2(
           @NonNull SatelliteCommunicationAllowedStateCallbackWrapper2 callback) {
-    SatelliteCommunicationAllowedStateCallback internalCallback =
+    SatelliteCommunicationAccessStateCallback internalCallback =
             sSatelliteCommunicationAllowedStateCallbackWrapperMap2.remove(callback);
     if (internalCallback != null) {
-      mSatelliteManager.unregisterForCommunicationAllowedStateChanged(internalCallback);
+      mSatelliteManager.unregisterForCommunicationAccessStateChanged(internalCallback);
     }
   }
 
@@ -2254,7 +2248,8 @@ public class SatelliteManagerWrapper {
             .map(info -> new SatelliteSubscriberInfo.Builder()
                     .setSubscriberId(info.getSubscriberId())
                     .setCarrierId(info.getCarrierId()).setNiddApn(info.getNiddApn())
-                    .setSubId(info.getSubId()).setSubscriberIdType(info.getSubscriberIdType())
+                    .setSubscriptionId(info.getSubId()).setSubscriberIdType(
+                            info.getSubscriberIdType())
                     .build())
             .collect(Collectors.toList()), executor, internalCallback);
   }
@@ -2271,7 +2266,7 @@ public class SatelliteManagerWrapper {
                         new SatelliteSubscriberInfoWrapper.Builder()
                                 .setSubscriberId(info.getSubscriberId())
                                 .setCarrierId(info.getCarrierId()).setNiddApn(info.getNiddApn())
-                                .setSubId(info.getSubId())
+                                .setSubId(info.getSubscriptionId())
                                 .setSubscriberIdType(info.getSubscriberIdType())
                                 .build()).build());
       }
@@ -2330,7 +2325,8 @@ public class SatelliteManagerWrapper {
             .map(info -> new SatelliteSubscriberInfo.Builder()
                     .setSubscriberId(info.getSubscriberId())
                     .setCarrierId(info.getCarrierId()).setNiddApn(info.getNiddApn())
-                    .setSubId(info.getSubId()).setSubscriberIdType(info.getSubscriberIdType())
+                    .setSubscriptionId(info.getSubId()).setSubscriberIdType(
+                            info.getSubscriberIdType())
                     .build())
             .collect(Collectors.toList()), executor, internalCallback);
   }
