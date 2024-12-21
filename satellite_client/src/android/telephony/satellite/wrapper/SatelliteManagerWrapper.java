@@ -54,7 +54,6 @@ import android.telephony.satellite.SatelliteProvisionStateCallback;
 import android.telephony.satellite.SatelliteSessionStats;
 import android.telephony.satellite.SatelliteSubscriberInfo;
 import android.telephony.satellite.SatelliteSubscriberProvisionStatus;
-import android.telephony.satellite.SatelliteSupportedStateCallback;
 import android.telephony.satellite.SatelliteTransmissionUpdateCallback;
 import android.telephony.satellite.SelectedNbIotSatelliteSubscriptionCallback;
 
@@ -119,7 +118,7 @@ public class SatelliteManagerWrapper {
           sSatelliteCapabilitiesCallbackWrapperMap = new ConcurrentHashMap<>();
 
   private static final ConcurrentHashMap<
-          SatelliteSupportedStateCallbackWrapper, SatelliteSupportedStateCallback>
+          SatelliteSupportedStateCallbackWrapper, Consumer<Boolean>>
           sSatelliteSupportedStateCallbackWrapperMap = new ConcurrentHashMap<>();
 
   private static final ConcurrentHashMap<CarrierRoamingNtnModeListenerWrapper,
@@ -1916,13 +1915,12 @@ public class SatelliteManagerWrapper {
       return SatelliteManagerWrapper.SATELLITE_RESULT_REQUEST_NOT_SUPPORTED;
     }
 
-    SatelliteSupportedStateCallback internalCallback =
-            new SatelliteSupportedStateCallback() {
-              @Override
-              public void onSatelliteSupportedStateChanged(boolean supported) {
-                callback.onSatelliteSupportedStateChanged(supported);
-              }
-            };
+    Consumer<Boolean> internalCallback = new Consumer<Boolean>() {
+      @Override
+      public void accept(Boolean supported) {
+        callback.onSatelliteSupportedStateChanged(supported);
+      }
+    };
     sSatelliteSupportedStateCallbackWrapperMap.put(callback, internalCallback);
     int result =
             mSatelliteManager.registerForSupportedStateChanged(executor, internalCallback);
@@ -2035,7 +2033,7 @@ public class SatelliteManagerWrapper {
       return;
     }
 
-    SatelliteSupportedStateCallback internalCallback =
+    Consumer<Boolean> internalCallback =
             sSatelliteSupportedStateCallbackWrapperMap.remove(callback);
     if (internalCallback != null) {
       mSatelliteManager.unregisterForSupportedStateChanged(internalCallback);
