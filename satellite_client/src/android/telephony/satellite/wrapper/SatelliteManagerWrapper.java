@@ -2233,10 +2233,10 @@ public class SatelliteManagerWrapper {
     }
 
     OutcomeReceiver internalCallback =
-            new OutcomeReceiver<Boolean, SatelliteException>() {
+            new OutcomeReceiver<Void, SatelliteException>() {
               @Override
-              public void onResult(Boolean result) {
-                callback.onResult(result);
+              public void onResult(Void result) {
+                callback.onResult(true);
               }
 
               @Override
@@ -2310,10 +2310,10 @@ public class SatelliteManagerWrapper {
     }
 
     OutcomeReceiver internalCallback =
-            new OutcomeReceiver<Boolean, SatelliteException>() {
+            new OutcomeReceiver<Void, SatelliteException>() {
               @Override
-              public void onResult(Boolean result) {
-                callback.onResult(result);
+              public void onResult(Void result) {
+                callback.onResult(true);
               }
 
               @Override
