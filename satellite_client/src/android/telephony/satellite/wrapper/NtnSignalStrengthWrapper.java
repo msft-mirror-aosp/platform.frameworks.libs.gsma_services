@@ -16,31 +16,24 @@
 
 package android.telephony.satellite.wrapper;
 
-import android.annotation.FlaggedApi;
 import android.annotation.IntDef;
 import android.annotation.NonNull;
-import com.android.internal.telephony.flags.Flags;
+
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 
 /** Encapsulates the non-terrestrial network signal strength related information. */
-@FlaggedApi(Flags.FLAG_OEM_ENABLED_SATELLITE_FLAG)
 public final class NtnSignalStrengthWrapper {
 
   /** Non-terrestrial network signal strength is not available. */
-  @FlaggedApi(Flags.FLAG_OEM_ENABLED_SATELLITE_FLAG)
   public static final int NTN_SIGNAL_STRENGTH_NONE = 0;
   /** Non-terrestrial network signal strength is poor. */
-  @FlaggedApi(Flags.FLAG_OEM_ENABLED_SATELLITE_FLAG)
   public static final int NTN_SIGNAL_STRENGTH_POOR = 1;
   /** Non-terrestrial network signal strength is moderate. */
-  @FlaggedApi(Flags.FLAG_OEM_ENABLED_SATELLITE_FLAG)
   public static final int NTN_SIGNAL_STRENGTH_MODERATE = 2;
   /** Non-terrestrial network signal strength is good. */
-  @FlaggedApi(Flags.FLAG_OEM_ENABLED_SATELLITE_FLAG)
   public static final int NTN_SIGNAL_STRENGTH_GOOD = 3;
   /** Non-terrestrial network signal strength is great. */
-  @FlaggedApi(Flags.FLAG_OEM_ENABLED_SATELLITE_FLAG)
   public static final int NTN_SIGNAL_STRENGTH_GREAT = 4;
   @NtnSignalStrengthLevel private final int mLevel;
 
@@ -55,12 +48,10 @@ public final class NtnSignalStrengthWrapper {
   @Retention(RetentionPolicy.SOURCE)
   public @interface NtnSignalStrengthLevel {}
 
-  @FlaggedApi(Flags.FLAG_OEM_ENABLED_SATELLITE_FLAG)
   public NtnSignalStrengthWrapper(@NonNull @NtnSignalStrengthLevel int level) {
     this.mLevel = level;
   }
 
-  @FlaggedApi(Flags.FLAG_OEM_ENABLED_SATELLITE_FLAG)
   @NtnSignalStrengthLevel public int getLevel() {
     return mLevel;
   }

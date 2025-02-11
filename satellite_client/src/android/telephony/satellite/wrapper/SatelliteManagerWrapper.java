@@ -1502,7 +1502,6 @@ public class SatelliteManagerWrapper {
   }
 
   /** Request to get the signal strength of the satellite connection. */
-  @FlaggedApi(Flags.FLAG_OEM_ENABLED_SATELLITE_FLAG)
   @NonNull
   public void requestNtnSignalStrength(
       @NonNull @CallbackExecutor Executor executor,
@@ -1531,7 +1530,6 @@ public class SatelliteManagerWrapper {
   }
 
   /** Registers for NTN signal strength changed from satellite modem. */
-  @FlaggedApi(Flags.FLAG_OEM_ENABLED_SATELLITE_FLAG)
   public void registerForNtnSignalStrengthChanged(
       @NonNull @CallbackExecutor Executor executor,
       @NonNull NtnSignalStrengthCallbackWrapper callback) {
@@ -1556,7 +1554,6 @@ public class SatelliteManagerWrapper {
    * Unregisters for NTN signal strength changed from satellite modem.
    * If callback was not registered before, the request will be ignored.
    */
-  @FlaggedApi(Flags.FLAG_OEM_ENABLED_SATELLITE_FLAG)
   public void unregisterForNtnSignalStrengthChanged(
       @NonNull NtnSignalStrengthCallbackWrapper callback) {
     if (mSatelliteManager == null){
@@ -1584,7 +1581,6 @@ public class SatelliteManagerWrapper {
    * otherwise.
    * Note: The method returns {@code false} if the parameter is invalid or any other error occurs.
    */
-  @FlaggedApi(Flags.FLAG_OEM_ENABLED_SATELLITE_FLAG)
   public boolean isOnlyNonTerrestrialNetworkSubscription(int subId) {
     List<SubscriptionInfo> subInfoList = mSubscriptionManager.getAvailableSubscriptionInfoList();
 
@@ -1604,7 +1600,6 @@ public class SatelliteManagerWrapper {
    * @param executor The executor on which the callback will be called.
    * @param callback The callback to handle the satellite capabilities changed event.
    */
-  @FlaggedApi(Flags.FLAG_OEM_ENABLED_SATELLITE_FLAG)
   public int registerForCapabilitiesChanged(
           @NonNull @CallbackExecutor Executor executor,
           @NonNull SatelliteCapabilitiesCallbackWrapper callback) {
@@ -1631,7 +1626,6 @@ public class SatelliteManagerWrapper {
    *
    * @param callback The callback that was passed to.
    */
-  @FlaggedApi(Flags.FLAG_OEM_ENABLED_SATELLITE_FLAG)
   public void unregisterForCapabilitiesChanged(
           @NonNull SatelliteCapabilitiesCallbackWrapper callback) {
     if (mSatelliteManager == null) {
