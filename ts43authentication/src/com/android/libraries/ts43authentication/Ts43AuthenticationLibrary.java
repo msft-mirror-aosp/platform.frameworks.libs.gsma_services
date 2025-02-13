@@ -124,6 +124,7 @@ public class Ts43AuthenticationLibrary extends Handler {
 
     private static class EapAkaAuthenticationRequest {
         private final String mAppName;
+        @Nullable private final String mAcceptContentType;
         @Nullable private final String mAppVersion;
         private final int mSlotIndex;
         private final URL mEntitlementServerAddress;
@@ -133,11 +134,14 @@ public class Ts43AuthenticationLibrary extends Handler {
         private final AuthenticationOutcomeReceiver<
                 Ts43Authentication.Ts43AuthToken, AuthenticationException> mCallback;
 
-        private EapAkaAuthenticationRequest(String appName, @Nullable String appVersion,
+        private EapAkaAuthenticationRequest(String appName, @Nullable String acceptContentType,
+                @Nullable String appVersion,
                 int slotIndex, URL entitlementServerAddress, @Nullable String entitlementVersion,
-                String appId, Executor executor, AuthenticationOutcomeReceiver<
+                String appId, Executor executor,
+                AuthenticationOutcomeReceiver<
                         Ts43Authentication.Ts43AuthToken, AuthenticationException> callback) {
             mAppName = appName;
+            mAcceptContentType = acceptContentType;
             mAppVersion = appVersion;
             mSlotIndex = slotIndex;
             mEntitlementServerAddress = entitlementServerAddress;
@@ -150,6 +154,7 @@ public class Ts43AuthenticationLibrary extends Handler {
 
     private static class OidcAuthenticationServerRequest {
         private final String mAppName;
+        @Nullable private final String mAcceptContentType;
         @Nullable private final String mAppVersion;
         private final int mSlotIndex;
         private final URL mEntitlementServerAddress;
@@ -158,11 +163,12 @@ public class Ts43AuthenticationLibrary extends Handler {
         private final Executor mExecutor;
         private final AuthenticationOutcomeReceiver<URL, AuthenticationException> mCallback;
 
-        private OidcAuthenticationServerRequest(String appName, @Nullable String appVersion,
-                int slotIndex, URL entitlementServerAddress, @Nullable String entitlementVersion,
-                String appId, Executor executor,
+        private OidcAuthenticationServerRequest(String appName, @Nullable String acceptContentType,
+                @Nullable String appVersion, int slotIndex, URL entitlementServerAddress,
+                @Nullable String entitlementVersion, String appId, Executor executor,
                 AuthenticationOutcomeReceiver<URL, AuthenticationException> callback) {
             mAppName = appName;
+            mAcceptContentType = acceptContentType;
             mAppVersion = appVersion;
             mSlotIndex = slotIndex;
             mEntitlementServerAddress = entitlementServerAddress;
@@ -204,6 +210,8 @@ public class Ts43AuthenticationLibrary extends Handler {
      *        in the HTTP GET request to the entitlement server unless
      *        {@link #KEY_APPEND_SHA_TO_APP_NAME_BOOL} or {@link #KEY_OVERRIDE_APP_NAME_STRING} is
      *        set in the configuration bundle.
+     * @param acceptContentType The accepted content type of the HTTP response, or {@code null} to
+     *        use the default.
      * @param appVersion The optional appVersion of the calling application, passed as the
      *        {@code app_version} in the HTTP GET request to the entitlement server.
      * @param slotIndex The logical SIM slot index involved in ODSA operation.
@@ -224,16 +232,17 @@ public class Ts43AuthenticationLibrary extends Handler {
      *        {@link AuthenticationException} with the failure details.
      */
     public void requestEapAkaAuthentication(PersistableBundle configs, String packageName,
-            @Nullable String appVersion, int slotIndex, URL entitlementServerAddress,
-            @Nullable String entitlementVersion, String appId, Executor executor,
-            AuthenticationOutcomeReceiver<
+            @Nullable String acceptContentType, @Nullable String appVersion, int slotIndex,
+            URL entitlementServerAddress, @Nullable String entitlementVersion, String appId,
+            Executor executor, AuthenticationOutcomeReceiver<
                     Ts43Authentication.Ts43AuthToken, AuthenticationException> callback) {
         String[] allowedPackageInfo = configs.getStringArray(KEY_ALLOWED_CERTIFICATES_STRING_ARRAY);
         String certificate = getMatchingCertificate(allowedPackageInfo, packageName);
         if (isCallingPackageAllowed(allowedPackageInfo, packageName, certificate)) {
             obtainMessage(EVENT_REQUEST_EAP_AKA_AUTHENTICATION, new EapAkaAuthenticationRequest(
-                    getAppName(configs, packageName, certificate), appVersion, slotIndex,
-                    entitlementServerAddress, entitlementVersion, appId, executor, callback))
+                    getAppName(configs, packageName, certificate), acceptContentType, appVersion,
+                    slotIndex, entitlementServerAddress, entitlementVersion, appId, executor,
+                    callback))
                     .sendToTarget();
         } else {
             executor.execute(() -> callback.onError(new AuthenticationException(
@@ -258,6 +267,8 @@ public class Ts43AuthenticationLibrary extends Handler {
      *        in the HTTP GET request to the entitlement server unless
      *        {@link #KEY_APPEND_SHA_TO_APP_NAME_BOOL} or {@link #KEY_OVERRIDE_APP_NAME_STRING} is
      *        set in the configuration bundle.
+     * @param acceptContentType The accepted content type of the HTTP response, or {@code null} to
+     *        use the default.
      * @param appVersion The optional appVersion of the calling application, passed as the
      *        {@code app_version} in the HTTP GET request to the entitlement server.
      * @param slotIndex The logical SIM slot index involved in ODSA operation.
@@ -278,8 +289,8 @@ public class Ts43AuthenticationLibrary extends Handler {
      *        will return an {@link AuthenticationException} with the failure details.
      */
     public void requestOidcAuthenticationServer(PersistableBundle configs,
-            String packageName, @Nullable String appVersion, int slotIndex,
-            URL entitlementServerAddress, @Nullable String entitlementVersion,
+            String packageName, @Nullable String acceptContentType, @Nullable String appVersion,
+            int slotIndex, URL entitlementServerAddress, @Nullable String entitlementVersion,
             String appId, Executor executor,
             AuthenticationOutcomeReceiver<URL, AuthenticationException> callback) {
         String[] allowedPackageInfo = configs.getStringArray(KEY_ALLOWED_CERTIFICATES_STRING_ARRAY);
@@ -287,9 +298,9 @@ public class Ts43AuthenticationLibrary extends Handler {
         if (isCallingPackageAllowed(allowedPackageInfo, packageName, certificate)) {
             obtainMessage(EVENT_REQUEST_OIDC_AUTHENTICATION_SERVER,
                     new OidcAuthenticationServerRequest(
-                            getAppName(configs, packageName, certificate), appVersion, slotIndex,
-                            entitlementServerAddress, entitlementVersion, appId, executor,
-                            callback)).sendToTarget();
+                            getAppName(configs, packageName, certificate), acceptContentType,
+                            appVersion, slotIndex, entitlementServerAddress, entitlementVersion,
+                            appId, executor, callback)).sendToTarget();
         } else {
             executor.execute(() -> callback.onError(new AuthenticationException(
                     AuthenticationException.ERROR_INVALID_APP_NAME,
@@ -531,7 +542,8 @@ public class Ts43AuthenticationLibrary extends Handler {
                 Ts43Authentication authLibrary = new Ts43Authentication(mContext,
                         request.mEntitlementServerAddress, request.mEntitlementVersion);
                 Ts43Authentication.Ts43AuthToken authToken = authLibrary.getAuthToken(
-                        request.mSlotIndex, request.mAppId, request.mAppName, request.mAppVersion);
+                        request.mSlotIndex, request.mAppId, request.mAppName, request.mAppVersion,
+                        request.mAcceptContentType);
                 request.mCallback.onResult(authToken);
             } catch (ServiceEntitlementException exception) {
                 request.mCallback.onError(new AuthenticationException(exception));
@@ -550,7 +562,7 @@ public class Ts43AuthenticationLibrary extends Handler {
                 URL url = authLibrary.getOidcAuthServer(
                         mContext, request.mSlotIndex, request.mEntitlementServerAddress,
                         request.mEntitlementVersion, request.mAppId, request.mAppName,
-                        request.mAppVersion);
+                        request.mAppVersion, request.mAcceptContentType);
                 request.mCallback.onResult(url);
             } catch (ServiceEntitlementException exception) {
                 request.mCallback.onError(new AuthenticationException(exception));
