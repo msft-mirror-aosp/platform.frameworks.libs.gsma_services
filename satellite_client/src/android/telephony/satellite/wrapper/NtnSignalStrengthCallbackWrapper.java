@@ -23,12 +23,10 @@ import com.android.internal.telephony.flags.Flags;
 /**
  * Encapsulates the callback class for notifying satellite signal strength change.
  */
-@FlaggedApi(Flags.FLAG_OEM_ENABLED_SATELLITE_FLAG)
 public interface NtnSignalStrengthCallbackWrapper {
   /**
    * Called when non-terrestrial network signal strength changes.
    * @param ntnSignalStrength The new non-terrestrial network signal strength.
    */
-  @FlaggedApi(Flags.FLAG_OEM_ENABLED_SATELLITE_FLAG)
   void onNtnSignalStrengthChanged(@NonNull NtnSignalStrengthWrapper ntnSignalStrength);
 }

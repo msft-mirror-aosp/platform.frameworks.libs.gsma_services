@@ -36,10 +36,8 @@ public class SatelliteSubscriberInfoWrapper implements Parcelable {
     @NonNull private int mSubId;
 
     /** SubscriberId format is the ICCID. */
-    @FlaggedApi(Flags.FLAG_OEM_ENABLED_SATELLITE_FLAG)
     public static final int ICCID = 0;
     /** SubscriberId format is the 6 digit of IMSI + MSISDN. */
-    @FlaggedApi(Flags.FLAG_OEM_ENABLED_SATELLITE_FLAG)
     public static final int IMSI_MSISDN = 1;
 
     /** Type of subscriber id */

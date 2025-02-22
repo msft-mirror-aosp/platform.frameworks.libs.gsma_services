@@ -24,12 +24,10 @@ import com.android.internal.telephony.flags.Flags;
 /**
  * A callback class for satellite capabilities change events.
  */
-@FlaggedApi(Flags.FLAG_OEM_ENABLED_SATELLITE_FLAG)
 public interface SatelliteCapabilitiesCallbackWrapper {
   /**
    * Called when satellite capability has changed.
    * @param capabilities The new satellite capabilities.
    */
-  @FlaggedApi(Flags.FLAG_OEM_ENABLED_SATELLITE_FLAG)
   void onSatelliteCapabilitiesChanged(@NonNull SatelliteCapabilitiesWrapper capabilities);
 }
